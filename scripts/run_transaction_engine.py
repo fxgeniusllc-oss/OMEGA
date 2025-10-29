@@ -21,11 +21,7 @@ from pathlib import Path
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.transaction_engine import (
-    start_transaction_engine,
-    opportunity_queue,
-    signed_tx_queue
-)
+from src import transaction_engine
 
 def main():
     """Run the transaction engine with example configuration"""
@@ -58,14 +54,14 @@ def main():
     
     try:
         # Start the engine (runs indefinitely)
-        start_transaction_engine()
+        transaction_engine.start_transaction_engine()
     except KeyboardInterrupt:
         print("\n")
         print("=" * 60)
         print("Shutting down transaction engine...")
         print(f"Final queue sizes:")
-        print(f"  - Opportunities: {opportunity_queue.qsize()}")
-        print(f"  - Signed TXs: {signed_tx_queue.qsize()}")
+        print(f"  - Opportunities: {transaction_engine.opportunity_queue.qsize()}")
+        print(f"  - Signed TXs: {transaction_engine.signed_tx_queue.qsize()}")
         print("=" * 60)
         sys.exit(0)
 

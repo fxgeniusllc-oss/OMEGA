@@ -119,7 +119,7 @@ Key variables:
 ⚠️ **WARNING**: Only enable after thorough testing
 
 To enable live broadcasting:
-1. Uncomment line 74 in `transaction_engine.py`
+1. Uncomment the `send_raw_transaction` call in the `broadcast_engine()` function
 2. Ensure all configurations are correct
 3. Test on testnet first
 4. Start with small amounts
@@ -173,7 +173,7 @@ def broadcast_engine():
     while True:
         if not signed_tx_queue.empty():
             signed_tx = signed_tx_queue.get()
-            # tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
             logging.info(f"TX broadcasted: {tx_hash.hex()}")
             # metrics.increment('transactions.sent')
 ```
