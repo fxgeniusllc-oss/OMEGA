@@ -125,7 +125,12 @@ class BotLogger:
         """Log configured DEX routers"""
         self.info("🔧 DEX Routers:")
         for dex in config.active_dexs:
-            router = config.dex_routers.get(dex, '')
+            # Map DEX names to router keys
+            router_key = dex
+            if dex == 'BALANCER':
+                router_key = 'BALANCER_V2'
+            
+            router = config.dex_routers.get(router_key, '')
             if router:
                 self.info(f"  ✓ {dex}: {router[:10]}...{router[-8:]}")
     

@@ -3,7 +3,15 @@ Blockchain interface with multi-chain support and RPC fallback
 """
 from typing import Dict, Optional, List
 from web3 import Web3
-from web3.middleware import geth_poa_middleware
+try:
+    from web3.middleware import geth_poa_middleware
+except ImportError:
+    # For newer versions of web3.py
+    try:
+        from web3.middleware.geth_poa import geth_poa_middleware
+    except ImportError:
+        # Fallback if middleware is not available
+        geth_poa_middleware = None
 from .config import config
 from .utils.constants import CHAIN_IDS
 
@@ -41,8 +49,11 @@ class BlockchainInterface:
             w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={'timeout': 30}))
             
             # Add PoA middleware for chains that need it (Polygon, BSC, etc.)
-            if chain in ['POLYGON', 'BSC']:
-                w3.middleware_onion.inject(geth_poa_middleware, layer=0)
+            if chain in ['POLYGON', 'BSC'] and geth_poa_middleware:
+                try:
+                    w3.middleware_onion.inject(geth_poa_middleware, layer=0)
+                except Exception:
+                    pass  # Middleware injection is optional
             
             # Test connection
             if w3.is_connected():
