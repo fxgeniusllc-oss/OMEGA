@@ -6,7 +6,6 @@ eth-typing==4.1.0
 
 # Async & HTTP
 aiohttp==3.9.1
-asyncio==3.4.3
 requests==2.31.0
 
 # Data & Math
