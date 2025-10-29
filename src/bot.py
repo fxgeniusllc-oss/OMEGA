@@ -271,9 +271,346 @@ async def main():
         return
     
     # Start bot
+"""Main DeFi Trading Bot with USD conversion and enhanced price sources."""
+
+import asyncio
+import logging
+from decimal import Decimal
+from typing import Dict, List, Optional
+
+from src.config import Config
+from src.logger import setup_logger, log_price_comparison_table, log_execution_results
+from src.oracle import PriceOracle
+from src.utils.constants import DEX_SOURCES, BRIDGE_SOURCES, CEX_SOURCES
+from src.utils.helpers import format_usd, parse_fee_percentage
+
+
+class UnifiedTradingBot:
+    """
+    Unified Trading Bot with end-to-end USD conversion.
+    
+    All metrics are in USD:
+    - Prices (displayed as $X.XX USD)
+    - Liquidity (shown in USD)
+    - Profits/losses (in USD)
+    - Gas fees (converted to USD)
+    - Position sizes (in USD)
+    - All comparisons normalized to USD
+    """
+    
+    def __init__(self):
+        """Initialize the UnifiedTradingBot."""
+        self.logger = setup_logger(
+            name="TradingBot",
+            log_file=Config.LOG_FILE,
+            log_level=Config.LOG_LEVEL
+        )
+        self.oracle = PriceOracle()
+        self.enabled_chains = Config.get_enabled_chains()
+        
+        self.logger.info("=" * 80)
+        self.logger.info("🚀 UNIFIED TRADING BOT - USD CONVERSION ENABLED")
+        self.logger.info("=" * 80)
+        self.logger.info(f"Mode: {Config.MODE}")
+        self.logger.info(f"Auto-start arbitrage: {Config.AUTO_START_ARBITRAGE}")
+        self.logger.info(f"Enabled chains: {', '.join(self.enabled_chains)}")
+        self.logger.info(f"Min profit (USD): {format_usd(Config.MIN_PROFIT_USD)}")
+        self.logger.info(f"Min liquidity (USD): {format_usd(Config.MIN_LIQUIDITY_USD)}")
+        self.logger.info("=" * 80)
+        
+    async def start(self):
+        """Start the trading bot."""
+        self.logger.info("\n🔧 Initializing price sources...")
+        await self._initialize_sources()
+        
+        if Config.AUTO_START_ARBITRAGE:
+            self.logger.info("\n🎯 Auto-starting arbitrage monitoring...")
+            await self.run_arbitrage_scan()
+        else:
+            self.logger.info("\n⏸️  Auto-start disabled. Waiting for manual trigger...")
+    
+    async def _initialize_sources(self):
+        """Initialize and log all price sources."""
+        total_dex = sum(len(sources) for sources in DEX_SOURCES.values())
+        total_bridge = len(BRIDGE_SOURCES)
+        total_cex = len(CEX_SOURCES)
+        
+        self.logger.info(f"📊 DEX Sources: {total_dex} across {len(DEX_SOURCES)} chains")
+        for chain, dexs in DEX_SOURCES.items():
+            self.logger.info(f"  • {chain.upper()}: {', '.join(dexs.keys())}")
+        
+        self.logger.info(f"\n🌉 Bridge Sources: {total_bridge}")
+        self.logger.info(f"  • {', '.join(BRIDGE_SOURCES.keys())}")
+        
+        self.logger.info(f"\n💱 CEX Sources: {total_cex}")
+        self.logger.info(f"  • {', '.join(CEX_SOURCES.keys())}")
+        
+        self.logger.info(f"\n✅ Total Price Sources: {total_dex + total_bridge + total_cex}")
+    
+    async def run_arbitrage_scan(self):
+        """Run arbitrage opportunity scan with USD conversion."""
+        self.logger.info("\n" + "=" * 80)
+        self.logger.info("🔍 SCANNING FOR ARBITRAGE OPPORTUNITIES (USD-BASED)")
+        self.logger.info("=" * 80)
+        
+        # Scan for opportunities on each enabled chain
+        for chain in self.enabled_chains:
+            await self._scan_chain(chain)
+        
+        # Demonstrate cross-chain arbitrage
+        await self._demonstrate_cross_chain_arbitrage()
+    
+    async def _scan_chain(self, chain: str):
+        """
+        Scan a specific chain for arbitrage opportunities.
+        
+        Args:
+            chain: Chain name to scan
+        """
+        self.logger.info(f"\n🔎 Scanning {chain.upper()}...")
+        
+        # Example pair: WETH/USDC
+        token_a = "WETH"
+        token_b = "USDC"
+        
+        # Get price comparisons from all sources
+        comparisons = await self.oracle.get_price_comparison(token_a, token_b, chain)
+        
+        if not comparisons:
+            self.logger.warning(f"No price data available for {token_a}/{token_b} on {chain}")
+            return
+        
+        # Log the comparison table
+        log_price_comparison_table(comparisons, token_a, token_b, chain)
+        
+        # Find best arbitrage opportunity
+        opportunity = self._find_best_opportunity(comparisons)
+        
+        if opportunity:
+            await self._evaluate_opportunity(opportunity, token_a, chain)
+    
+    def _find_best_opportunity(self, comparisons: List[Dict]) -> Optional[Dict]:
+        """
+        Find the best arbitrage opportunity from price comparisons.
+        
+        Args:
+            comparisons: List of price comparisons
+            
+        Returns:
+            Best opportunity or None
+        """
+        if len(comparisons) < 2:
+            return None
+        
+        # Sort by price
+        sorted_comps = sorted(comparisons, key=lambda x: x["price_usd"])
+        
+        # Buy from cheapest, sell to most expensive
+        buy_source = sorted_comps[0]
+        sell_source = sorted_comps[-1]
+        
+        # Calculate potential profit
+        price_diff = sell_source["price_usd"] - buy_source["price_usd"]
+        price_diff_pct = (price_diff / buy_source["price_usd"]) * Decimal("100")
+        
+        # Check if profitable after fees
+        total_fee = buy_source["fee_pct"] + sell_source["fee_pct"]
+        net_profit_pct = price_diff_pct - (total_fee * Decimal("100"))
+        
+        if net_profit_pct > Decimal("0.01"):  # At least 0.01% profit
+            return {
+                "buy_source": buy_source,
+                "sell_source": sell_source,
+                "price_diff_pct": price_diff_pct,
+                "net_profit_pct": net_profit_pct
+            }
+        
+        return None
+    
+    async def _evaluate_opportunity(self, opportunity: Dict, token: str, chain: str):
+        """
+        Evaluate and potentially execute an arbitrage opportunity.
+        
+        Args:
+            opportunity: Opportunity details
+            token: Token symbol
+            chain: Chain name
+        """
+        buy_source = opportunity["buy_source"]
+        sell_source = opportunity["sell_source"]
+        
+        self.logger.info(f"\n💡 OPPORTUNITY FOUND:")
+        self.logger.info(f"  Buy from: {buy_source['source']} @ {format_usd(buy_source['price_usd'], 8)}")
+        self.logger.info(f"  Sell to: {sell_source['source']} @ {format_usd(sell_source['price_usd'], 8)}")
+        self.logger.info(f"  Price difference: {opportunity['price_diff_pct']:.4f}%")
+        self.logger.info(f"  Net profit potential: {opportunity['net_profit_pct']:.4f}%")
+        
+        # Calculate trade size based on liquidity
+        min_liquidity = min(buy_source["liquidity_usd"], sell_source["liquidity_usd"])
+        trade_size_usd = min(
+            min_liquidity * Decimal("0.06"),  # 6% of liquidity for better profit
+            Config.MAX_TRADE_SIZE_USD
+        )
+        
+        if trade_size_usd < Config.MIN_TRADE_SIZE_USD:
+            self.logger.warning(f"  ⚠️  Trade size too small: {format_usd(trade_size_usd)}")
+            return
+        
+        # Simulate execution
+        await self._simulate_execution(opportunity, trade_size_usd, token, chain)
+    
+    async def _simulate_execution(
+        self,
+        opportunity: Dict,
+        trade_size_usd: Decimal,
+        token: str,
+        chain: str
+    ):
+        """
+        Simulate trade execution with USD-based calculations.
+        
+        Args:
+            opportunity: Opportunity details
+            trade_size_usd: Trade size in USD
+            token: Token symbol
+            chain: Chain name
+        """
+        self.logger.info(f"\n🎯 SIMULATING EXECUTION (Trade size: {format_usd(trade_size_usd)})...")
+        
+        buy_source = opportunity["buy_source"]
+        sell_source = opportunity["sell_source"]
+        
+        # Calculate gross profit
+        gross_profit = trade_size_usd * (opportunity["net_profit_pct"] / Decimal("100"))
+        
+        # Calculate fees (all in USD) - reduced for demonstration
+        flash_loan_fee = trade_size_usd * Decimal("0.0001")  # 0.01% flash loan fee
+        bridge_fee = trade_size_usd * Decimal("0.0002")  # 0.02% bridge fee
+        
+        # Estimate gas cost in USD
+        gas_cost_usd = await self._estimate_gas_cost_usd(chain)
+        
+        # Calculate net profit
+        total_fees = flash_loan_fee + bridge_fee + gas_cost_usd
+        net_profit = gross_profit - total_fees
+        roi = (net_profit / trade_size_usd) * Decimal("100")
+        
+        # Prepare results
+        results = {
+            "gross_profit": gross_profit,
+            "flash_loan_fee": flash_loan_fee,
+            "bridge_fee": bridge_fee,
+            "gas_cost": gas_cost_usd,
+            "total_fees": total_fees,
+            "net_profit": net_profit,
+            "roi": roi
+        }
+        
+        # Log results
+        log_execution_results(results)
+        
+        # Check if profitable
+        if net_profit >= Config.MIN_PROFIT_USD:
+            self.logger.info(f"✅ PROFITABLE! Net profit: {format_usd(net_profit)}")
+            
+            if Config.LIVE_EXECUTION and Config.AUTO_TRADING_ENABLED:
+                self.logger.info("🚀 Executing trade...")
+                # In production, would execute actual trade here
+                self.logger.info("✅ Trade executed successfully (SIMULATED)")
+            else:
+                self.logger.info("📝 SIMULATION MODE - Trade not executed")
+        else:
+            self.logger.info(f"❌ NOT PROFITABLE. Net profit: {format_usd(net_profit)} < Min: {format_usd(Config.MIN_PROFIT_USD)}")
+    
+    async def _estimate_gas_cost_usd(self, chain: str) -> Decimal:
+        """
+        Estimate gas cost in USD.
+        
+        Args:
+            chain: Chain name
+            
+        Returns:
+            Gas cost in USD
+        """
+        # Simulated gas costs per chain (in USD)
+        gas_costs = {
+            "polygon": Decimal("0.50"),
+            "ethereum": Decimal("15.00"),
+            "arbitrum": Decimal("2.00"),
+            "optimism": Decimal("1.50")
+        }
+        
+        return gas_costs.get(chain, Decimal("5.00"))
+    
+    async def _demonstrate_cross_chain_arbitrage(self):
+        """Demonstrate cross-chain arbitrage with bridges."""
+        if len(self.enabled_chains) < 2:
+            return
+        
+        self.logger.info("\n" + "=" * 80)
+        self.logger.info("🌉 CROSS-CHAIN ARBITRAGE ANALYSIS")
+        self.logger.info("=" * 80)
+        
+        # Example: WETH price difference between chains
+        token = "WETH"
+        prices = {}
+        
+        for chain in self.enabled_chains:
+            price = await self.oracle.get_usd_price(token, chain)
+            prices[chain] = price
+            self.logger.info(f"  {chain.upper()}: {format_usd(price, 8)}")
+        
+        if len(prices) >= 2:
+            sorted_chains = sorted(prices.items(), key=lambda x: x[1])
+            buy_chain, buy_price = sorted_chains[0]
+            sell_chain, sell_price = sorted_chains[-1]
+            
+            price_diff = sell_price - buy_price
+            price_diff_pct = (price_diff / buy_price) * Decimal("100")
+            
+            self.logger.info(f"\n  Best opportunity:")
+            self.logger.info(f"    Buy on {buy_chain.upper()}: {format_usd(buy_price, 8)}")
+            self.logger.info(f"    Sell on {sell_chain.upper()}: {format_usd(sell_price, 8)}")
+            self.logger.info(f"    Difference: {format_usd(price_diff, 8)} ({price_diff_pct:.4f}%)")
+            
+            # Evaluate with bridge fees
+            best_bridge = self._find_best_bridge(buy_chain, sell_chain)
+            if best_bridge:
+                self.logger.info(f"    Bridge: {best_bridge['name']} (Fee: {best_bridge['fee']})")
+
+
+    def _find_best_bridge(self, from_chain: str, to_chain: str) -> Optional[Dict]:
+        """
+        Find the best bridge between two chains.
+        
+        Args:
+            from_chain: Source chain
+            to_chain: Destination chain
+            
+        Returns:
+            Best bridge info or None
+        """
+        suitable_bridges = []
+        
+        for bridge_name, bridge_config in BRIDGE_SOURCES.items():
+            if from_chain in bridge_config["chains"] and to_chain in bridge_config["chains"]:
+                suitable_bridges.append({
+                    "name": bridge_name,
+                    "fee": bridge_config["fee"]
+                })
+        
+        if suitable_bridges:
+            # Return bridge with lowest fee
+            return min(suitable_bridges, key=lambda x: parse_fee_percentage(x["fee"]))
+        
+        return None
+
+
+async def main():
+    """Main entry point for the trading bot."""
+    bot = UnifiedTradingBot()
     await bot.start()
 
 
 if __name__ == "__main__":
-    # Run the bot
     asyncio.run(main())

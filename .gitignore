@@ -18,7 +18,7 @@ ENV/
 .env.*.local
 
 # Logs & Data
-logs/*.log
+logs/
 *.log
 trades_history.json
 
@@ -60,4 +60,3 @@ Thumbs.db
 
 # Temporary files
 /tmp/
-*.tmp
