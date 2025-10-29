@@ -1,3 +1,1 @@
-"""
-Strategy implementations for the trading bot.
-"""
+"""Trading Strategies Module."""

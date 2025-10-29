@@ -1,45 +1,65 @@
-"""
-Test suite for the trading bot.
-"""
-
+"""Tests for the trading bot."""
 import pytest
-import os
-from dotenv import load_dotenv
+from decimal import Decimal
+from src.bot import (
+    PriceOracle,
+    StrategyMode,
+    TradingStrategy,
+    load_config,
+    BotConfig,
+)
 
 
-def test_env_example_exists():
-    """Test that .env.example exists"""
-    assert os.path.exists('.env.example'), ".env.example file should exist"
+def test_price_oracle():
+    """Test PriceOracle initialization."""
+    oracle = PriceOracle()
+    assert oracle.exchange_rates["USDC"] == Decimal("1.0000")
+    assert oracle.exchange_rates["WETH"] == Decimal("2347.50")
 
 
-def test_requirements_exists():
-    """Test that requirements.txt exists"""
-    assert os.path.exists('requirements.txt'), "requirements.txt file should exist"
+@pytest.mark.asyncio
+async def test_get_usd_price():
+    """Test getting USD price for a token."""
+    oracle = PriceOracle()
+    price = await oracle.get_usd_price("USDC")
+    assert price == Decimal("1.0000")
 
 
-def test_bot_module_import():
-    """Test that bot module can be imported"""
-    try:
-        from src.bot import UnifiedTradingBot
-        assert UnifiedTradingBot is not None
-    except ImportError as e:
-        pytest.fail(f"Failed to import bot module: {e}")
+@pytest.mark.asyncio
+async def test_convert_to_usd():
+    """Test converting token amount to USD."""
+    oracle = PriceOracle()
+    amount = Decimal("10")
+    usd_value = await oracle.convert_to_usd(amount, "USDC")
+    assert usd_value == Decimal("10.0000")
 
 
-def test_env_loading():
-    """Test that environment variables can be loaded"""
-    load_dotenv('.env.example')
-    mode = os.getenv('MODE')
-    assert mode is not None, "MODE environment variable should be set"
-    assert mode == 'DEV', "Default MODE should be DEV"
+@pytest.mark.asyncio
+async def test_convert_from_usd():
+    """Test converting USD to token amount."""
+    oracle = PriceOracle()
+    usd_amount = Decimal("100")
+    token_amount = await oracle.convert_from_usd(usd_amount, "USDC")
+    assert token_amount == Decimal("100.0000")
 
 
-def test_directory_structure():
-    """Test that required directories exist"""
-    required_dirs = ['src', 'src/strategies', 'src/utils', 'tests', 'scripts', 'docker', 'logs', 'models']
-    for dir_path in required_dirs:
-        assert os.path.isdir(dir_path), f"Directory {dir_path} should exist"
+def test_strategy_mode_enum():
+    """Test StrategyMode enum."""
+    assert StrategyMode.LIVE.value == "LIVE"
+    assert StrategyMode.DEV.value == "DEV"
+    assert StrategyMode.SIM.value == "SIM"
 
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+def test_trading_strategy_enum():
+    """Test TradingStrategy enum."""
+    assert TradingStrategy.CROSS_CHAIN_ARBITRAGE.value == "cross_chain_arbitrage"
+    assert TradingStrategy.BRIDGE_ARBITRAGE.value == "bridge_arbitrage"
+
+
+def test_load_config():
+    """Test loading configuration from environment."""
+    config = load_config()
+    assert isinstance(config, BotConfig)
+    assert config.mode in [StrategyMode.LIVE, StrategyMode.DEV, StrategyMode.SIM]
+    assert isinstance(config.strategies, list)
+    assert config.min_profit_usd > 0

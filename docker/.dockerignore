@@ -1,17 +1,41 @@
-# Ignore files not needed in Docker image
-.git/
-.gitignore
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
 venv/
 env/
+ENV/
+
+# Environment variables
+.env
 .env.local
-*.pyc
-__pycache__/
-.pytest_cache/
+
+# Logs
+logs/
 *.log
-.DS_Store
+
+# Models
+models/*.h5
+models/*.cbm
+models/*.xgb
+
+# IDE
 .vscode/
 .idea/
-*.swp
-*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation
 README.md
-docs/
+
+# Testing
+tests/
+.pytest_cache/
