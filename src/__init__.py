@@ -1,5 +1,5 @@
-"""Source package"""
-from .logger import setup_logger, TradingBotLogger, TerminalFormatter
-from .config import Config
+"""
+DeFi Trading Bot Package
+"""
 
-__all__ = ['setup_logger', 'TradingBotLogger', 'TerminalFormatter', 'Config']
+__version__ = "1.0.0"

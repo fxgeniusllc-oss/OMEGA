@@ -57,6 +57,3 @@ models/*.xgb
 # OS
 Thumbs.db
 .DS_Store
-
-# Temporary files
-/tmp/

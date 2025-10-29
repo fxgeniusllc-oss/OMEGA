@@ -1,0 +1,17 @@
+# Ignore files not needed in Docker image
+.git/
+.gitignore
+venv/
+env/
+.env.local
+*.pyc
+__pycache__/
+.pytest_cache/
+*.log
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+README.md
+docs/
