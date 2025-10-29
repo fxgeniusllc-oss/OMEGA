@@ -1,5 +1,5 @@
 """
-Blockchain interface with multi-chain support and RPC fallback
+Blockchain interface with multi-chain support and RPC fallback with retry logic.
 """
 from typing import Dict, Optional, List
 from web3 import Web3
@@ -14,6 +14,7 @@ except ImportError:
         geth_poa_middleware = None
 from .config import config
 from .utils.constants import CHAIN_IDS
+from .utils.retry import retry_with_backoff
 
 class BlockchainInterface:
     """Multi-chain blockchain interface with automatic RPC fallback"""
@@ -92,86 +93,63 @@ class BlockchainInterface:
         
         return self._connect_to_chain(chain, next_index)
     
+    @retry_with_backoff(max_retries=3, base_delay=1.0, exponential_base=2.0)
     def get_balance(self, chain: str, address: str) -> Optional[int]:
-        """Get native token balance for an address"""
+        """Get native token balance for an address with retry logic."""
         w3 = self.get_web3(chain)
         if not w3:
-            return None
+            raise ConnectionError(f"Not connected to {chain}")
         
-        try:
-            return w3.eth.get_balance(Web3.to_checksum_address(address))
-        except Exception as e:
-            if self.logger:
-                self.logger.error(f"Error getting balance for {address} on {chain}: {e}")
-            # Try reconnecting
-            if self.reconnect_chain(chain):
-                return self.get_balance(chain, address)
-            return None
+        return w3.eth.get_balance(Web3.to_checksum_address(address))
     
+    @retry_with_backoff(max_retries=3, base_delay=1.0, exponential_base=2.0)
     def get_token_balance(self, chain: str, token_address: str, wallet_address: str) -> Optional[int]:
-        """Get ERC20 token balance"""
+        """Get ERC20 token balance with retry logic."""
         w3 = self.get_web3(chain)
         if not w3:
-            return None
+            raise ConnectionError(f"Not connected to {chain}")
         
-        try:
-            # Minimal ERC20 ABI for balanceOf
-            erc20_abi = [
-                {
-                    "constant": True,
-                    "inputs": [{"name": "_owner", "type": "address"}],
-                    "name": "balanceOf",
-                    "outputs": [{"name": "balance", "type": "uint256"}],
-                    "type": "function"
-                }
-            ]
-            
-            token_contract = w3.eth.contract(
-                address=Web3.to_checksum_address(token_address),
-                abi=erc20_abi
-            )
-            
-            balance = token_contract.functions.balanceOf(
-                Web3.to_checksum_address(wallet_address)
-            ).call()
-            
-            return balance
-            
-        except Exception as e:
-            if self.logger:
-                self.logger.error(f"Error getting token balance on {chain}: {e}")
-            return None
+        # Minimal ERC20 ABI for balanceOf
+        erc20_abi = [
+            {
+                "constant": True,
+                "inputs": [{"name": "_owner", "type": "address"}],
+                "name": "balanceOf",
+                "outputs": [{"name": "balance", "type": "uint256"}],
+                "type": "function"
+            }
+        ]
+        
+        token_contract = w3.eth.contract(
+            address=Web3.to_checksum_address(token_address),
+            abi=erc20_abi
+        )
+        
+        balance = token_contract.functions.balanceOf(
+            Web3.to_checksum_address(wallet_address)
+        ).call()
+        
+        return balance
     
+    @retry_with_backoff(max_retries=3, base_delay=1.0, exponential_base=2.0)
     def get_gas_price(self, chain: str) -> Optional[int]:
-        """Get current gas price for a chain"""
+        """Get current gas price for a chain with retry logic."""
         w3 = self.get_web3(chain)
         if not w3:
-            return None
+            raise ConnectionError(f"Not connected to {chain}")
         
-        try:
-            gas_price = w3.eth.gas_price
-            # Apply multiplier from config
-            return int(gas_price * config.gas_price_multiplier)
-        except Exception as e:
-            if self.logger:
-                self.logger.error(f"Error getting gas price for {chain}: {e}")
-            return None
+        gas_price = w3.eth.gas_price
+        # Apply multiplier from config
+        return int(gas_price * config.gas_price_multiplier)
     
+    @retry_with_backoff(max_retries=3, base_delay=1.0, exponential_base=2.0)
     def get_block_number(self, chain: str) -> Optional[int]:
-        """Get current block number"""
+        """Get current block number with retry logic."""
         w3 = self.get_web3(chain)
         if not w3:
-            return None
+            raise ConnectionError(f"Not connected to {chain}")
         
-        try:
-            return w3.eth.block_number
-        except Exception as e:
-            if self.logger:
-                self.logger.error(f"Error getting block number for {chain}: {e}")
-            # Try reconnecting
-            if self.reconnect_chain(chain):
-                return self.get_block_number(chain)
-            return None
+        return w3.eth.block_number
     
     def get_chain_id(self, chain: str) -> Optional[int]:
         """Get chain ID"""
@@ -195,15 +173,11 @@ class BlockchainInterface:
             status[chain] = self.is_connected(chain)
         return status
     
+    @retry_with_backoff(max_retries=3, base_delay=1.0, exponential_base=2.0)
     def estimate_gas(self, chain: str, transaction: dict) -> Optional[int]:
-        """Estimate gas for a transaction"""
+        """Estimate gas for a transaction with retry logic."""
         w3 = self.get_web3(chain)
         if not w3:
-            return None
+            raise ConnectionError(f"Not connected to {chain}")
         
-        try:
-            return w3.eth.estimate_gas(transaction)
-        except Exception as e:
-            if self.logger:
-                self.logger.error(f"Error estimating gas on {chain}: {e}")
-            return None
+        return w3.eth.estimate_gas(transaction)

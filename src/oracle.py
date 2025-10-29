@@ -1,4 +1,4 @@
-"""Price Oracle for USD conversion of all tokens."""
+"""Price Oracle for USD conversion of all tokens with retry logic."""
 
 import logging
 from decimal import Decimal
@@ -14,6 +14,7 @@ from src.utils.constants import (
     TOKEN_ADDRESSES
 )
 from src.utils.helpers import safe_decimal, parse_fee_percentage
+from src.utils.retry import async_retry_with_backoff
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +31,10 @@ class PriceOracle:
         self.cache_ttl = 60  # Cache prices for 60 seconds
         self.last_update: Dict[str, float] = {}
         
+    @async_retry_with_backoff(max_retries=3, base_delay=1.0, exponential_base=2.0)
     async def get_usd_price(self, token: str, chain: str = "polygon") -> Decimal:
         """
-        Get USD price for a token.
+        Get USD price for a token with retry logic for transient failures.
         
         Args:
             token: Token symbol (e.g., "WETH", "USDC")
