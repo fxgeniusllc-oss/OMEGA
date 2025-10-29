@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  bot:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: omega-defi-bot
+    env_file:
+      - ../.env
+    volumes:
+      - ../logs:/app/logs
+      - ../models:/app/models
+    restart: unless-stopped
+    networks:
+      - bot-network
+
+networks:
+  bot-network:
+    driver: bridge
