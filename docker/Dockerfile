@@ -24,7 +24,6 @@ RUN mkdir -p logs
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
-ENV PYTHONPATH=/app
 
 # Run the bot
 CMD ["python", "-m", "src.bot"]

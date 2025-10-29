@@ -5,16 +5,15 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    container_name: omega-defi-bot
     env_file:
       - ../.env
     volumes:
       - ../logs:/app/logs
       - ../models:/app/models
     restart: unless-stopped
-    networks:
-      - bot-network
-
-networks:
-  bot-network:
-    driver: bridge
+    container_name: defi-trading-bot
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

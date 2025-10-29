@@ -1,15 +1,22 @@
 @echo off
 REM Installation script for Windows
 
-echo =========================================
-echo DeFi Trading Bot - Installation Script
-echo =========================================
+echo ==================================
+echo DeFi Trading Bot - Installation
+echo ==================================
 
-REM Check Python version
+REM Check if Python is installed
+python --version >nul 2>&1
+if %errorlevel% neq 0 (
+    echo Error: Python is not installed
+    exit /b 1
+)
+
+echo Python found:
 python --version
-echo.
 
 REM Create virtual environment
+echo.
 echo Creating virtual environment...
 python -m venv venv
 
@@ -18,36 +25,36 @@ echo Activating virtual environment...
 call venv\Scripts\activate.bat
 
 REM Upgrade pip
+echo.
 echo Upgrading pip...
 python -m pip install --upgrade pip setuptools wheel
 
 REM Install dependencies
+echo.
 echo Installing dependencies...
 pip install -r requirements.txt
 
-REM Copy .env.example if .env doesn't exist
-if not exist ".env" (
+REM Create .env if it doesn't exist
+if not exist .env (
+    echo.
     echo Creating .env file from template...
     copy .env.example .env
-    echo [92m[SUCCESS][0m .env file created. Please edit it with your configuration.
-) else (
-    echo [92m[SUCCESS][0m .env file already exists.
+    echo WARNING: Please edit .env with your actual keys and addresses
 )
 
-REM Create log directory
-if not exist "logs\" mkdir logs
-echo [92m[SUCCESS][0m Log directory created.
-
-REM Create models directory
-if not exist "models\" mkdir models
-echo [92m[SUCCESS][0m Models directory created.
-
 echo.
-echo =========================================
-echo Installation Complete!
-echo =========================================
+echo ==================================
+echo Installation complete!
+echo ==================================
+echo.
 echo Next steps:
-echo 1. Edit .env with your API keys and configuration
-echo 2. Run: scripts\run.bat
-echo =========================================
+echo 1. Edit .env with your configuration:
+echo    notepad .env
+echo.
+echo 2. Activate virtual environment:
+echo    venv\Scripts\activate.bat
+echo.
+echo 3. Run the bot:
+echo    python -m src.bot
+echo.
 pause
