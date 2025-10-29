@@ -1,14 +1,5 @@
-"""Main src package"""
-from .config import config
-from .logger import get_logger
-from .oracle import PriceOracle
-from .blockchain import BlockchainInterface
-from .bot import UnifiedTradingBot
+"""Source package"""
+from .logger import setup_logger, TradingBotLogger, TerminalFormatter
+from .config import Config
 
-__all__ = [
-    'config',
-    'get_logger',
-    'PriceOracle',
-    'BlockchainInterface',
-    'UnifiedTradingBot'
-]
+__all__ = ['setup_logger', 'TradingBotLogger', 'TerminalFormatter', 'Config']

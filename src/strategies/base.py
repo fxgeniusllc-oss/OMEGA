@@ -1,75 +1,61 @@
-"""
-Base strategy class for all trading strategies
-"""
+"""Base strategy class for trading strategies"""
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional
-from decimal import Decimal
+from typing import List, Dict, Optional
+
 
 class BaseStrategy(ABC):
-    """Base class for all trading strategies"""
+    """Abstract base class for trading strategies"""
     
-    def __init__(self, name: str, config, logger, blockchain, oracle):
+    def __init__(self, name: str, logger):
         self.name = name
-        self.config = config
         self.logger = logger
-        self.blockchain = blockchain
-        self.oracle = oracle
-        self.enabled = True
-        self.opportunities_found = 0
-        self.trades_executed = 0
+        self.opportunities = []
     
     @abstractmethod
-    async def scan(self) -> List[Dict]:
-        """Scan for opportunities. Must be implemented by subclasses."""
+    async def scan_for_opportunities(self) -> List[Dict]:
+        """
+        Scan for trading opportunities
+        
+        Returns:
+            List of opportunity dictionaries
+        """
         pass
     
     @abstractmethod
-    async def execute(self, opportunity: Dict) -> bool:
-        """Execute a trade. Must be implemented by subclasses."""
+    async def execute_opportunity(self, opportunity: Dict) -> Dict:
+        """
+        Execute a trading opportunity
+        
+        Args:
+            opportunity: Opportunity dictionary
+        
+        Returns:
+            Execution result dictionary
+        """
         pass
     
-    def is_profitable(self, profit_usd: float) -> bool:
-        """Check if opportunity meets minimum profit threshold"""
-        return profit_usd >= self.config.min_profit_usd
-    
-    def has_sufficient_liquidity(self, liquidity_usd: float) -> bool:
-        """Check if pool has sufficient liquidity"""
-        return liquidity_usd >= self.config.min_liquidity_usd
-    
-    def calculate_slippage_amount(self, amount: Decimal) -> Decimal:
-        """Calculate slippage amount"""
-        from ..utils.helpers import calculate_slippage
-        return calculate_slippage(amount, self.config.slippage_bps)
-    
-    def log_opportunity(self, opportunity: Dict):
-        """Log an opportunity"""
-        self.opportunities_found += 1
-        if self.logger:
-            self.logger.log_opportunity(opportunity)
-    
-    def log_trade(self, trade_data: Dict):
-        """Log a trade"""
-        self.trades_executed += 1
-        if self.logger:
-            self.logger.log_trade(trade_data)
-    
-    def get_stats(self) -> Dict:
-        """Get strategy statistics"""
+    def calculate_profit(self, entry_price: float, exit_price: float, 
+                        amount: float, fees: float = 0) -> Dict:
+        """
+        Calculate profit from a trade
+        
+        Args:
+            entry_price: Entry price
+            exit_price: Exit price
+            amount: Trade amount
+            fees: Total fees
+        
+        Returns:
+            Dictionary with profit calculations
+        """
+        price_diff = exit_price - entry_price
+        gross_profit = price_diff * amount
+        net_profit = gross_profit - fees
+        roi = (net_profit / (entry_price * amount)) * 100 if entry_price * amount > 0 else 0
+        
         return {
-            'name': self.name,
-            'enabled': self.enabled,
-            'opportunities_found': self.opportunities_found,
-            'trades_executed': self.trades_executed,
+            'price_difference': price_diff,
+            'gross_profit': gross_profit,
+            'net_profit': net_profit,
+            'roi': roi
         }
-    
-    def enable(self):
-        """Enable strategy"""
-        self.enabled = True
-        if self.logger:
-            self.logger.info(f"✓ {self.name} strategy enabled")
-    
-    def disable(self):
-        """Disable strategy"""
-        self.enabled = False
-        if self.logger:
-            self.logger.warning(f"✗ {self.name} strategy disabled")

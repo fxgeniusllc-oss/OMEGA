@@ -1,3 +1,55 @@
+# OMEGA - Advanced DeFi Trading Bot
+
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](tests/)
+[![Python](https://img.shields.io/badge/python-3.8%2B-blue)](https://python.org)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+An advanced DeFi trading bot with enhanced terminal output featuring color-coded displays, real-time price comparisons, and comprehensive execution tracking.
+
+## ✨ Key Features
+
+### 🎨 Rich Terminal Output
+- **Color-coded messages**: Green for profits, red for losses, blue for transactions, cyan for prices
+- **Price comparison tables**: Real-time price data across multiple DEXs
+- **Execution results**: Detailed transaction information with profit/loss breakdown
+- **Trading statistics**: Win rate, total profits, average performance
+- **Bot cycle displays**: Clear cycle headers with timestamps
+
+### 🚀 Trading Strategies
+- **Cross-Chain Arbitrage**: Find price differences across chains
+- **Bridge Arbitrage**: Exploit bridge pricing inefficiencies
+- **Extensible architecture**: Easy to add custom strategies
+
+### 📊 Monitoring & Logging
+- **Dual logging**: Colored console output + plain text file logs
+- **Real-time statistics**: Track performance across all trades
+- **Transaction tracking**: Full blockchain confirmation details
+
+## 🎯 Quick Start
+
+```bash
+# Clone and install
+git clone https://github.com/fxgeniusllc-oss/OMEGA.git
+cd OMEGA
+bash scripts/install.sh
+
+# Run demo (safe, no real trades)
+python scripts/demo.py
+
+# Run bot
+python -m src.bot
+```
+
+📚 **See [QUICKSTART.md](QUICKSTART.md) for detailed instructions**
+
+## 📖 Documentation
+
+- **[QUICKSTART.md](QUICKSTART.md)** - Get started in minutes
+- **[FEATURES.md](FEATURES.md)** - Detailed feature documentation
+- **[README.md](README.md)** - Full installation guide (this file)
+
+---
+
 # DeFi Trading Bot - Repository Setup & Installation Guide
 
 ## 📁 Repository Structure
@@ -452,6 +504,70 @@ Then:
 ```bash
 pip install -r requirements-lite.txt
 ```
+
+---
+
+## 🎨 Terminal Output Features
+
+The bot includes rich terminal output with color-coded displays for easy monitoring:
+
+### Price Comparison Tables
+```
+============================================================
+           PRICE COMPARISON - POLYGON | USDC/WETH           
+============================================================
+Source               Price                Liquidity            Spread%        
+Uniswap V3          $1850.50000000        500,000.00           0.0950
+QuickSwap           $1850.60000000        450,000.00           
+Balancer            $1851.23000000        300,000.00           
+============================================================
+Price Range: $1850.50 - $1851.23 | Spread: 0.0395%
+```
+
+### Execution Results
+```
+==============================================================================
+                              EXECUTION RESULTS                               
+==============================================================================
+Transaction Hash: 0x1a2b3c4d5e6f...
+Block Number: 45,001,234
+Gas Used: 287,456
+Execution Time: 2.34s
+
+Entry Price: $1850.50000000
+Exit Price: $1851.23000000
+Price Difference: $0.73000000
+
+Gross Profit: $73.00
+Flash Loan Fee: -$0.15
+Net Profit: $72.85
+ROI: 0.3925%
+==============================================================================
+```
+
+### Trading Statistics
+```
+==============================================================================
+                              TRADING STATISTICS                              
+==============================================================================
+Total Trades: 5
+Winning Trades: 4
+Win Rate: 80.00%
+Total Profit: $342.15
+Total Loss: -$28.50
+Net Profit: $313.65
+Average Profit per Trade: $62.73
+==============================================================================
+```
+
+### Color Guide
+- 🟢 **Green**: Profits, successful trades
+- 🔴 **Red**: Losses, errors
+- 🔵 **Blue**: Transaction hashes, blockchain events
+- 🟦 **Cyan**: Price data, debug information
+- 🟡 **Yellow**: Warnings
+
+See [FEATURES.md](FEATURES.md) for complete documentation.
 
 ---
 

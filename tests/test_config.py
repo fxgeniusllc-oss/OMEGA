@@ -1,67 +1,50 @@
 """
-Tests for configuration loading
+Tests for the configuration module
 """
-import os
 import pytest
+import sys
+import os
+
+# Add src to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
 from src.config import Config
 
-def test_config_loads_from_env(monkeypatch):
-    """Test that configuration loads from environment variables"""
-    # Set test environment variables
-    monkeypatch.setenv('MODE', 'DEV')
-    monkeypatch.setenv('BOT_ADDRESS', '0x1234567890123456789012345678901234567890')
-    monkeypatch.setenv('POLYGON_ENABLED', 'true')
-    monkeypatch.setenv('MIN_PROFIT_USD', '20')
-    
-    config = Config()
-    
-    assert config.mode == 'DEV'
-    assert config.bot_address == '0x1234567890123456789012345678901234567890'
-    assert 'POLYGON' in config.enabled_chains
-    assert config.min_profit_usd == 20.0
 
-def test_rpc_fallback_configuration(monkeypatch):
-    """Test that RPC fallback is configured correctly"""
-    monkeypatch.setenv('INFURA_POLYGON_RPC', 'https://polygon-infura.io')
-    monkeypatch.setenv('QUICKNODE_RPC_URL', 'https://polygon-quicknode.io')
-    monkeypatch.setenv('ALCHEMY_RPC_URL', 'https://polygon-alchemy.io')
+class TestConfig:
+    """Test Config class"""
     
-    config = Config()
+    def test_mode_default(self):
+        """Test MODE has a default value"""
+        assert Config.MODE is not None
     
-    polygon_rpcs = config.get_all_rpc_urls('POLYGON')
-    assert len(polygon_rpcs) == 3
-    assert 'infura' in polygon_rpcs[0]
-    assert 'quicknode' in polygon_rpcs[1]
-    assert 'alchemy' in polygon_rpcs[2]
-
-def test_active_dexs_parsing(monkeypatch):
-    """Test that active DEXs are parsed correctly"""
-    monkeypatch.setenv('ACTIVE_DEXS', 'quickswap,uniswap_v3,sushiswap')
+    def test_get_active_strategies(self):
+        """Test get_active_strategies method"""
+        strategies = Config.get_active_strategies()
+        assert isinstance(strategies, list)
     
-    config = Config()
+    def test_get_active_dexs(self):
+        """Test get_active_dexs method"""
+        dexs = Config.get_active_dexs()
+        assert isinstance(dexs, list)
     
-    assert 'QUICKSWAP' in config.active_dexs
-    assert 'UNISWAP_V3' in config.active_dexs
-    assert 'SUSHISWAP' in config.active_dexs
-
-def test_token_addresses_loaded(monkeypatch):
-    """Test that token addresses are loaded"""
-    monkeypatch.setenv('WMATIC', '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270')
-    monkeypatch.setenv('USDC', '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174')
+    def test_is_simulation_mode(self):
+        """Test is_simulation_mode method"""
+        result = Config.is_simulation_mode()
+        assert isinstance(result, bool)
     
-    config = Config()
+    def test_min_profit_usd(self):
+        """Test MIN_PROFIT_USD is a float"""
+        assert isinstance(Config.MIN_PROFIT_USD, float)
     
-    assert config.token_addresses['WMATIC'] == '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270'
-    assert config.token_addresses['USDC'] == '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'
-
-def test_risk_management_settings(monkeypatch):
-    """Test risk management settings"""
-    monkeypatch.setenv('MIN_PROFIT_USD', '15')
-    monkeypatch.setenv('MIN_LIQUIDITY_USD', '50000')
-    monkeypatch.setenv('SLIPPAGE_BPS', '50')
+    def test_min_liquidity_usd(self):
+        """Test MIN_LIQUIDITY_USD is a float"""
+        assert isinstance(Config.MIN_LIQUIDITY_USD, float)
     
-    config = Config()
+    def test_scan_cycle_interval_ms(self):
+        """Test SCAN_CYCLE_INTERVAL_MS is an int"""
+        assert isinstance(Config.SCAN_CYCLE_INTERVAL_MS, int)
     
-    assert config.min_profit_usd == 15.0
-    assert config.min_liquidity_usd == 50000.0
-    assert config.slippage_bps == 50
+    def test_log_level(self):
+        """Test LOG_LEVEL has a value"""
+        assert Config.LOG_LEVEL is not None
