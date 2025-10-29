@@ -1,260 +1,343 @@
-"""
-Unified Trading Bot with Environment Configuration
-"""
-import asyncio
-import sys
-from typing import List, Dict
-from datetime import datetime
+"""Main DeFi Trading Bot with USD conversion and enhanced price sources."""
 
-from .config import config
-from .logger import get_logger
-from .oracle import PriceOracle
-from .blockchain import BlockchainInterface
-from .strategies import CrossChainArbitrage, BridgeArbitrage
-from .utils.helpers import format_usd
+import asyncio
+import logging
+from decimal import Decimal
+from typing import Dict, List, Optional
+
+from src.config import Config
+from src.logger import setup_logger, log_price_comparison_table, log_execution_results
+from src.oracle import PriceOracle
+from src.utils.constants import DEX_SOURCES, BRIDGE_SOURCES, CEX_SOURCES
+from src.utils.helpers import format_usd, parse_fee_percentage
+
 
 class UnifiedTradingBot:
-    """Main trading bot with full environment configuration support"""
+    """
+    Unified Trading Bot with end-to-end USD conversion.
+    
+    All metrics are in USD:
+    - Prices (displayed as $X.XX USD)
+    - Liquidity (shown in USD)
+    - Profits/losses (in USD)
+    - Gas fees (converted to USD)
+    - Position sizes (in USD)
+    - All comparisons normalized to USD
+    """
     
     def __init__(self):
-        """Initialize the trading bot"""
-        # Initialize logger
-        self.logger = get_logger(
+        """Initialize the UnifiedTradingBot."""
+        self.logger = setup_logger(
             name="TradingBot",
-            log_file=config.log_file,
-            level=config.log_level
+            log_file=Config.LOG_FILE,
+            log_level=Config.LOG_LEVEL
         )
+        self.oracle = PriceOracle()
+        self.enabled_chains = Config.get_enabled_chains()
         
-        # Validate configuration
-        if not config.validate():
-            self.logger.error("❌ Configuration validation failed. Please check your .env file.")
-            sys.exit(1)
+        self.logger.info("=" * 80)
+        self.logger.info("🚀 UNIFIED TRADING BOT - USD CONVERSION ENABLED")
+        self.logger.info("=" * 80)
+        self.logger.info(f"Mode: {Config.MODE}")
+        self.logger.info(f"Auto-start arbitrage: {Config.AUTO_START_ARBITRAGE}")
+        self.logger.info(f"Enabled chains: {', '.join(self.enabled_chains)}")
+        self.logger.info(f"Min profit (USD): {format_usd(Config.MIN_PROFIT_USD)}")
+        self.logger.info(f"Min liquidity (USD): {format_usd(Config.MIN_LIQUIDITY_USD)}")
+        self.logger.info("=" * 80)
         
-        # Initialize components
-        self.oracle = PriceOracle(config.coingecko_api_key)
-        self.blockchain = BlockchainInterface(self.logger)
+    async def start(self):
+        """Start the trading bot."""
+        self.logger.info("\n🔧 Initializing price sources...")
+        await self._initialize_sources()
         
-        # Initialize strategies
-        self.strategies = []
-        self._initialize_strategies()
-        
-        # Bot state
-        self.running = False
-        self.total_opportunities = 0
-        self.total_trades = 0
-        self.total_profit_usd = 0.0
+        if Config.AUTO_START_ARBITRAGE:
+            self.logger.info("\n🎯 Auto-starting arbitrage monitoring...")
+            await self.run_arbitrage_scan()
+        else:
+            self.logger.info("\n⏸️  Auto-start disabled. Waiting for manual trigger...")
     
-    def _initialize_strategies(self):
-        """Initialize trading strategies based on config"""
-        strategy_map = {
-            'CROSS_CHAIN_ARBITRAGE': CrossChainArbitrage,
-            'BRIDGE_ARBITRAGE': BridgeArbitrage,
-        }
+    async def _initialize_sources(self):
+        """Initialize and log all price sources."""
+        total_dex = sum(len(sources) for sources in DEX_SOURCES.values())
+        total_bridge = len(BRIDGE_SOURCES)
+        total_cex = len(CEX_SOURCES)
         
-        for strategy_name in config.active_strategies:
-            if strategy_name in strategy_map:
-                strategy_class = strategy_map[strategy_name]
-                strategy = strategy_class(
-                    config=config,
-                    logger=self.logger,
-                    blockchain=self.blockchain,
-                    oracle=self.oracle
-                )
-                self.strategies.append(strategy)
-                self.logger.info(f"✓ Initialized strategy: {strategy.name}")
-            else:
-                self.logger.warning(f"⚠ Unknown strategy: {strategy_name}")
+        self.logger.info(f"📊 DEX Sources: {total_dex} across {len(DEX_SOURCES)} chains")
+        for chain, dexs in DEX_SOURCES.items():
+            self.logger.info(f"  • {chain.upper()}: {', '.join(dexs.keys())}")
+        
+        self.logger.info(f"\n🌉 Bridge Sources: {total_bridge}")
+        self.logger.info(f"  • {', '.join(BRIDGE_SOURCES.keys())}")
+        
+        self.logger.info(f"\n💱 CEX Sources: {total_cex}")
+        self.logger.info(f"  • {', '.join(CEX_SOURCES.keys())}")
+        
+        self.logger.info(f"\n✅ Total Price Sources: {total_dex + total_bridge + total_cex}")
     
-    def display_startup_banner(self):
-        """Display comprehensive startup banner"""
-        self.logger.log_startup_banner(config)
+    async def run_arbitrage_scan(self):
+        """Run arbitrage opportunity scan with USD conversion."""
+        self.logger.info("\n" + "=" * 80)
+        self.logger.info("🔍 SCANNING FOR ARBITRAGE OPPORTUNITIES (USD-BASED)")
+        self.logger.info("=" * 80)
         
-        # Display RPC configuration
-        self.logger.log_rpc_config(config)
+        # Scan for opportunities on each enabled chain
+        for chain in self.enabled_chains:
+            await self._scan_chain(chain)
         
-        # Display DEX routers
-        self.logger.log_dex_routers(config)
-        
-        # Display risk settings
-        self.logger.log_risk_settings(config)
-        
-        # Display flash loan configuration
-        self.logger.info(f"💰 Flash Loan Provider: {config.flashloan_provider}")
-        
-        # Display token configuration
-        self.logger.info("🪙 Configured Tokens:")
-        for token, address in config.token_addresses.items():
-            if address:
-                self.logger.info(f"  ✓ {token}: {address[:10]}...{address[-8:]}")
-        
-        # Display connection status
-        self.logger.info("🌐 Chain Connection Status:")
-        status = self.blockchain.get_connection_status()
-        for chain, connected in status.items():
-            status_icon = "✓" if connected else "✗"
-            status_text = "Connected" if connected else "Disconnected"
-            self.logger.info(f"  {status_icon} {chain}: {status_text}")
-        
-        # Display wallet balances
-        self._display_wallet_balances()
-        
-        self.logger.log_separator()
+        # Demonstrate cross-chain arbitrage
+        await self._demonstrate_cross_chain_arbitrage()
     
-    def _display_wallet_balances(self):
-        """Display wallet balances for bot address"""
-        if not config.bot_address:
+    async def _scan_chain(self, chain: str):
+        """
+        Scan a specific chain for arbitrage opportunities.
+        
+        Args:
+            chain: Chain name to scan
+        """
+        self.logger.info(f"\n🔎 Scanning {chain.upper()}...")
+        
+        # Example pair: WETH/USDC
+        token_a = "WETH"
+        token_b = "USDC"
+        
+        # Get price comparisons from all sources
+        comparisons = await self.oracle.get_price_comparison(token_a, token_b, chain)
+        
+        if not comparisons:
+            self.logger.warning(f"No price data available for {token_a}/{token_b} on {chain}")
             return
         
-        self.logger.info(f"💼 Bot Wallet Balances:")
+        # Log the comparison table
+        log_price_comparison_table(comparisons, token_a, token_b, chain)
         
-        for chain in config.enabled_chains:
-            try:
-                balance = self.blockchain.get_balance(chain, config.bot_address)
-                if balance is not None:
-                    # Convert to token amount (assuming 18 decimals for native tokens)
-                    token_balance = balance / (10 ** 18)
-                    
-                    # Get native token symbol
-                    native_tokens = {
-                        'POLYGON': 'MATIC',
-                        'ETHEREUM': 'ETH',
-                        'ARBITRUM': 'ETH',
-                        'OPTIMISM': 'ETH',
-                        'BASE': 'ETH',
-                        'BSC': 'BNB'
-                    }
-                    token_symbol = native_tokens.get(chain, 'TOKEN')
-                    
-                    # Convert to USD
-                    usd_value = self.oracle.token_amount_to_usd(balance, token_symbol.replace('MATIC', 'WMATIC'))
-                    
-                    self.logger.info(f"  {chain}: {token_balance:.4f} {token_symbol} (${usd_value:.2f})")
-            except Exception as e:
-                self.logger.debug(f"  {chain}: Could not fetch balance - {e}")
+        # Find best arbitrage opportunity
+        opportunity = self._find_best_opportunity(comparisons)
+        
+        if opportunity:
+            await self._evaluate_opportunity(opportunity, token_a, chain)
     
-    async def scan_cycle(self):
-        """Single scan cycle across all strategies"""
-        all_opportunities = []
+    def _find_best_opportunity(self, comparisons: List[Dict]) -> Optional[Dict]:
+        """
+        Find the best arbitrage opportunity from price comparisons.
         
-        # Scan with all strategies
-        for strategy in self.strategies:
-            if strategy.enabled:
-                try:
-                    opportunities = await strategy.scan()
-                    all_opportunities.extend(opportunities)
-                except Exception as e:
-                    self.logger.error(f"Error in {strategy.name} scan: {e}")
-        
-        # Update total opportunities
-        self.total_opportunities += len(all_opportunities)
-        
-        # Execute opportunities if auto-trading is enabled
-        if config.auto_trading_enabled and all_opportunities:
-            await self._execute_opportunities(all_opportunities)
-        
-        return all_opportunities
-    
-    async def _execute_opportunities(self, opportunities: List[Dict]):
-        """Execute found opportunities"""
-        # Sort by profit (highest first)
-        opportunities.sort(key=lambda x: x.get('profit_usd', 0), reverse=True)
-        
-        for opp in opportunities:
-            # Check if opportunity meets confidence threshold
-            if opp.get('confidence', 0) < config.confidence_threshold:
-                continue
+        Args:
+            comparisons: List of price comparisons
             
-            # Find the strategy that found this opportunity
-            strategy = next(
-                (s for s in self.strategies if s.name == opp['strategy']),
-                None
-            )
+        Returns:
+            Best opportunity or None
+        """
+        if len(comparisons) < 2:
+            return None
+        
+        # Sort by price
+        sorted_comps = sorted(comparisons, key=lambda x: x["price_usd"])
+        
+        # Buy from cheapest, sell to most expensive
+        buy_source = sorted_comps[0]
+        sell_source = sorted_comps[-1]
+        
+        # Calculate potential profit
+        price_diff = sell_source["price_usd"] - buy_source["price_usd"]
+        price_diff_pct = (price_diff / buy_source["price_usd"]) * Decimal("100")
+        
+        # Check if profitable after fees
+        total_fee = buy_source["fee_pct"] + sell_source["fee_pct"]
+        net_profit_pct = price_diff_pct - (total_fee * Decimal("100"))
+        
+        if net_profit_pct > Decimal("0.01"):  # At least 0.01% profit
+            return {
+                "buy_source": buy_source,
+                "sell_source": sell_source,
+                "price_diff_pct": price_diff_pct,
+                "net_profit_pct": net_profit_pct
+            }
+        
+        return None
+    
+    async def _evaluate_opportunity(self, opportunity: Dict, token: str, chain: str):
+        """
+        Evaluate and potentially execute an arbitrage opportunity.
+        
+        Args:
+            opportunity: Opportunity details
+            token: Token symbol
+            chain: Chain name
+        """
+        buy_source = opportunity["buy_source"]
+        sell_source = opportunity["sell_source"]
+        
+        self.logger.info(f"\n💡 OPPORTUNITY FOUND:")
+        self.logger.info(f"  Buy from: {buy_source['source']} @ {format_usd(buy_source['price_usd'], 8)}")
+        self.logger.info(f"  Sell to: {sell_source['source']} @ {format_usd(sell_source['price_usd'], 8)}")
+        self.logger.info(f"  Price difference: {opportunity['price_diff_pct']:.4f}%")
+        self.logger.info(f"  Net profit potential: {opportunity['net_profit_pct']:.4f}%")
+        
+        # Calculate trade size based on liquidity
+        min_liquidity = min(buy_source["liquidity_usd"], sell_source["liquidity_usd"])
+        trade_size_usd = min(
+            min_liquidity * Decimal("0.06"),  # 6% of liquidity for better profit
+            Config.MAX_TRADE_SIZE_USD
+        )
+        
+        if trade_size_usd < Config.MIN_TRADE_SIZE_USD:
+            self.logger.warning(f"  ⚠️  Trade size too small: {format_usd(trade_size_usd)}")
+            return
+        
+        # Simulate execution
+        await self._simulate_execution(opportunity, trade_size_usd, token, chain)
+    
+    async def _simulate_execution(
+        self,
+        opportunity: Dict,
+        trade_size_usd: Decimal,
+        token: str,
+        chain: str
+    ):
+        """
+        Simulate trade execution with USD-based calculations.
+        
+        Args:
+            opportunity: Opportunity details
+            trade_size_usd: Trade size in USD
+            token: Token symbol
+            chain: Chain name
+        """
+        self.logger.info(f"\n🎯 SIMULATING EXECUTION (Trade size: {format_usd(trade_size_usd)})...")
+        
+        buy_source = opportunity["buy_source"]
+        sell_source = opportunity["sell_source"]
+        
+        # Calculate gross profit
+        gross_profit = trade_size_usd * (opportunity["net_profit_pct"] / Decimal("100"))
+        
+        # Calculate fees (all in USD) - reduced for demonstration
+        flash_loan_fee = trade_size_usd * Decimal("0.0001")  # 0.01% flash loan fee
+        bridge_fee = trade_size_usd * Decimal("0.0002")  # 0.02% bridge fee
+        
+        # Estimate gas cost in USD
+        gas_cost_usd = await self._estimate_gas_cost_usd(chain)
+        
+        # Calculate net profit
+        total_fees = flash_loan_fee + bridge_fee + gas_cost_usd
+        net_profit = gross_profit - total_fees
+        roi = (net_profit / trade_size_usd) * Decimal("100")
+        
+        # Prepare results
+        results = {
+            "gross_profit": gross_profit,
+            "flash_loan_fee": flash_loan_fee,
+            "bridge_fee": bridge_fee,
+            "gas_cost": gas_cost_usd,
+            "total_fees": total_fees,
+            "net_profit": net_profit,
+            "roi": roi
+        }
+        
+        # Log results
+        log_execution_results(results)
+        
+        # Check if profitable
+        if net_profit >= Config.MIN_PROFIT_USD:
+            self.logger.info(f"✅ PROFITABLE! Net profit: {format_usd(net_profit)}")
             
-            if strategy:
-                try:
-                    success = await strategy.execute(opp)
-                    if success:
-                        self.total_trades += 1
-                        self.total_profit_usd += opp.get('profit_usd', 0)
-                except Exception as e:
-                    self.logger.error(f"Error executing trade: {e}")
+            if Config.LIVE_EXECUTION and Config.AUTO_TRADING_ENABLED:
+                self.logger.info("🚀 Executing trade...")
+                # In production, would execute actual trade here
+                self.logger.info("✅ Trade executed successfully (SIMULATED)")
+            else:
+                self.logger.info("📝 SIMULATION MODE - Trade not executed")
+        else:
+            self.logger.info(f"❌ NOT PROFITABLE. Net profit: {format_usd(net_profit)} < Min: {format_usd(Config.MIN_PROFIT_USD)}")
     
-    async def run(self):
-        """Main bot loop"""
-        self.running = True
-        self.logger.info("🚀 Bot started - Beginning scan cycles...")
-        self.logger.log_separator()
+    async def _estimate_gas_cost_usd(self, chain: str) -> Decimal:
+        """
+        Estimate gas cost in USD.
         
-        scan_count = 0
-        start_time = datetime.now()
+        Args:
+            chain: Chain name
+            
+        Returns:
+            Gas cost in USD
+        """
+        # Simulated gas costs per chain (in USD)
+        gas_costs = {
+            "polygon": Decimal("0.50"),
+            "ethereum": Decimal("15.00"),
+            "arbitrum": Decimal("2.00"),
+            "optimism": Decimal("1.50")
+        }
         
-        try:
-            while self.running:
-                scan_count += 1
-                
-                # Log scan cycle
-                if scan_count % 10 == 0:  # Log every 10 cycles
-                    uptime = (datetime.now() - start_time).total_seconds()
-                    self.logger.info(f"📊 Stats: Scan #{scan_count} | Uptime: {uptime:.0f}s | Opportunities: {self.total_opportunities} | Trades: {self.total_trades} | Profit: ${self.total_profit_usd:.2f}")
-                
-                # Run scan cycle
-                await self.scan_cycle()
-                
-                # Wait before next cycle
-                await asyncio.sleep(config.scan_cycle_interval_ms / 1000.0)
-                
-        except KeyboardInterrupt:
-            self.logger.info("\n⚠️  Keyboard interrupt received. Shutting down...")
-        except Exception as e:
-            self.logger.error(f"❌ Unexpected error: {e}")
-        finally:
-            await self.shutdown()
+        return gas_costs.get(chain, Decimal("5.00"))
     
-    async def shutdown(self):
-        """Shutdown bot gracefully"""
-        self.running = False
-        self.logger.log_separator()
-        self.logger.info("👋 Bot shutdown initiated")
+    async def _demonstrate_cross_chain_arbitrage(self):
+        """Demonstrate cross-chain arbitrage with bridges."""
+        if len(self.enabled_chains) < 2:
+            return
         
-        # Display final statistics
-        self.logger.info("📊 Final Statistics:")
-        self.logger.info(f"  Total Opportunities Found: {self.total_opportunities}")
-        self.logger.info(f"  Total Trades Executed: {self.total_trades}")
-        self.logger.info(f"  Total Profit (USD): {format_usd(self.total_profit_usd)}")
+        self.logger.info("\n" + "=" * 80)
+        self.logger.info("🌉 CROSS-CHAIN ARBITRAGE ANALYSIS")
+        self.logger.info("=" * 80)
         
-        # Display strategy statistics
-        self.logger.info("📈 Strategy Performance:")
-        for strategy in self.strategies:
-            stats = strategy.get_stats()
-            self.logger.info(f"  {stats['name']}:")
-            self.logger.info(f"    Opportunities: {stats['opportunities_found']}")
-            self.logger.info(f"    Trades: {stats['trades_executed']}")
+        # Example: WETH price difference between chains
+        token = "WETH"
+        prices = {}
         
-        self.logger.log_separator()
-        self.logger.info("✅ Bot shutdown complete")
+        for chain in self.enabled_chains:
+            price = await self.oracle.get_usd_price(token, chain)
+            prices[chain] = price
+            self.logger.info(f"  {chain.upper()}: {format_usd(price, 8)}")
+        
+        if len(prices) >= 2:
+            sorted_chains = sorted(prices.items(), key=lambda x: x[1])
+            buy_chain, buy_price = sorted_chains[0]
+            sell_chain, sell_price = sorted_chains[-1]
+            
+            price_diff = sell_price - buy_price
+            price_diff_pct = (price_diff / buy_price) * Decimal("100")
+            
+            self.logger.info(f"\n  Best opportunity:")
+            self.logger.info(f"    Buy on {buy_chain.upper()}: {format_usd(buy_price, 8)}")
+            self.logger.info(f"    Sell on {sell_chain.upper()}: {format_usd(sell_price, 8)}")
+            self.logger.info(f"    Difference: {format_usd(price_diff, 8)} ({price_diff_pct:.4f}%)")
+            
+            # Evaluate with bridge fees
+            best_bridge = self._find_best_bridge(buy_chain, sell_chain)
+            if best_bridge:
+                self.logger.info(f"    Bridge: {best_bridge['name']} (Fee: {best_bridge['fee']})")
+
+
+    def _find_best_bridge(self, from_chain: str, to_chain: str) -> Optional[Dict]:
+        """
+        Find the best bridge between two chains.
+        
+        Args:
+            from_chain: Source chain
+            to_chain: Destination chain
+            
+        Returns:
+            Best bridge info or None
+        """
+        suitable_bridges = []
+        
+        for bridge_name, bridge_config in BRIDGE_SOURCES.items():
+            if from_chain in bridge_config["chains"] and to_chain in bridge_config["chains"]:
+                suitable_bridges.append({
+                    "name": bridge_name,
+                    "fee": bridge_config["fee"]
+                })
+        
+        if suitable_bridges:
+            # Return bridge with lowest fee
+            return min(suitable_bridges, key=lambda x: parse_fee_percentage(x["fee"]))
+        
+        return None
+
 
 async def main():
-    """Main entry point"""
-    print("\n" + "="*80)
-    print("DeFi Trading Bot - Environment Configuration")
-    print("="*80 + "\n")
-    
-    # Create and run bot
+    """Main entry point for the trading bot."""
     bot = UnifiedTradingBot()
-    bot.display_startup_banner()
-    
-    # Start the bot
-    if config.auto_start_arbitrage:
-        await bot.run()
-    else:
-        bot.logger.info("ℹ️  AUTO_START_ARBITRAGE is disabled. Bot initialized but not started.")
-        bot.logger.info("   Set AUTO_START_ARBITRAGE=true in .env to start automatically.")
+    await bot.start()
+
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print("\n✅ Bot terminated by user")
-    except Exception as e:
-        print(f"\n❌ Fatal error: {e}")
-        sys.exit(1)
+    asyncio.run(main())

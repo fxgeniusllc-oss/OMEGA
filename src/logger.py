@@ -1,178 +1,130 @@
-"""
-Enhanced logging setup with colorized output
-"""
+"""Enhanced logging setup for the DeFi Trading Bot."""
+
 import logging
 import sys
 from pathlib import Path
-from datetime import datetime
-from colorlog import ColoredFormatter
 
-class BotLogger:
-    """Enhanced logger for trading bot with colorized output"""
+
+def setup_logger(
+    name: str = "TradingBot",
+    log_file: str = "trading_bot.log",
+    log_level: str = "INFO"
+) -> logging.Logger:
+    """
+    Setup enhanced logger with console and file output.
     
-    def __init__(self, name: str = "TradingBot", log_file: str = "trading_bot.log", level: str = "INFO"):
-        self.name = name
-        self.log_file = log_file
-        self.logger = logging.getLogger(name)
-        self.logger.setLevel(getattr(logging, level.upper()))
+    Args:
+        name: Logger name
+        log_file: Log file path
+        log_level: Logging level
         
-        # Remove existing handlers
-        self.logger.handlers = []
-        
-        # Create logs directory if it doesn't exist
-        log_dir = Path("logs")
-        log_dir.mkdir(exist_ok=True)
-        
-        # Console handler with colors
-        console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setLevel(logging.DEBUG)
-        
-        # Colored formatter for console
-        console_format = (
-            '%(log_color)s%(asctime)s%(reset)s | '
-            '%(log_color)s%(levelname)-8s%(reset)s | '
-            '%(cyan)s%(name)s%(reset)s | '
-            '%(message)s'
-        )
-        
-        console_formatter = ColoredFormatter(
-            console_format,
-            datefmt='%Y-%m-%d %H:%M:%S',
-            log_colors={
-                'DEBUG': 'cyan',
-                'INFO': 'green',
-                'WARNING': 'yellow',
-                'ERROR': 'red',
-                'CRITICAL': 'red,bg_white',
-            }
-        )
-        console_handler.setFormatter(console_formatter)
-        
-        # File handler (no colors)
-        file_handler = logging.FileHandler(log_dir / log_file, encoding='utf-8')
+    Returns:
+        Configured logger
+    """
+    # Create logs directory if it doesn't exist
+    log_dir = Path("logs")
+    log_dir.mkdir(exist_ok=True)
+    
+    # Create logger
+    logger = logging.getLogger(name)
+    logger.setLevel(getattr(logging, log_level.upper()))
+    
+    # Remove existing handlers
+    logger.handlers = []
+    
+    # Console handler with formatting
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.INFO)
+    console_format = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    console_handler.setFormatter(console_format)
+    logger.addHandler(console_handler)
+    
+    # File handler with detailed formatting
+    if log_file:
+        file_handler = logging.FileHandler(log_dir / log_file)
         file_handler.setLevel(logging.DEBUG)
-        
-        file_format = (
-            '%(asctime)s | %(levelname)-8s | %(name)s | %(message)s'
+        file_format = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
         )
-        file_formatter = logging.Formatter(file_format, datefmt='%Y-%m-%d %H:%M:%S')
-        file_handler.setFormatter(file_formatter)
-        
-        # Add handlers
-        self.logger.addHandler(console_handler)
-        self.logger.addHandler(file_handler)
+        file_handler.setFormatter(file_format)
+        logger.addHandler(file_handler)
     
-    def info(self, message: str):
-        """Log info message"""
-        self.logger.info(message)
-    
-    def debug(self, message: str):
-        """Log debug message"""
-        self.logger.debug(message)
-    
-    def warning(self, message: str):
-        """Log warning message"""
-        self.logger.warning(message)
-    
-    def error(self, message: str):
-        """Log error message"""
-        self.logger.error(message)
-    
-    def critical(self, message: str):
-        """Log critical message"""
-        self.logger.critical(message)
-    
-    def log_separator(self, char: str = "═", length: int = 80):
-        """Log a separator line"""
-        self.logger.info(char * length)
-    
-    def log_startup_banner(self, config):
-        """Log comprehensive startup banner"""
-        self.log_separator()
-        self.info("BOT STARTUP - USING YOUR ENVIRONMENT CONFIGURATION")
-        self.log_separator()
-        self.info(f"Mode: {config.mode}")
-        self.info(f"Chains: {', '.join(config.enabled_chains)}")
-        
-        # Format DEX names
-        dex_names = []
-        for dex in config.active_dexs:
-            if dex == "UNISWAP_V3":
-                dex_names.append("UNISWAP_V3")
-            else:
-                dex_names.append(dex)
-        
-        self.info(f"DEXs Scanning: {', '.join(dex_names)}")
-        self.info(f"Strategies: {', '.join(config.active_strategies)}")
-        self.info(f"Bot Address: {config.bot_address}")
-        self.info(f"Executor Address: {config.executor_address}")
-        self.info(f"Currency: USD (End-to-End Conversion)")
-        self.log_separator()
-    
-    def log_rpc_config(self, config):
-        """Log RPC configuration with fallbacks"""
-        self.info("🌐 RPC Configuration (with fallbacks):")
-        for chain in config.enabled_chains:
-            rpcs = config.get_all_rpc_urls(chain)
-            if rpcs:
-                self.info(f"  {chain}:")
-                for i, rpc in enumerate(rpcs, 1):
-                    # Mask the API key in the URL
-                    masked_rpc = self._mask_api_key(rpc)
-                    self.info(f"    {i}. {masked_rpc}")
-    
-    def log_dex_routers(self, config):
-        """Log configured DEX routers"""
-        self.info("🔧 DEX Routers:")
-        for dex in config.active_dexs:
-            # Map DEX names to router keys
-            router_key = dex
-            if dex == 'BALANCER':
-                router_key = 'BALANCER_V2'
-            
-            router = config.dex_routers.get(router_key, '')
-            if router:
-                self.info(f"  ✓ {dex}: {router[:10]}...{router[-8:]}")
-    
-    def log_risk_settings(self, config):
-        """Log risk management settings"""
-        self.info("⚠️  Risk Management:")
-        self.info(f"  Min Profit: ${config.min_profit_usd}")
-        self.info(f"  Min Liquidity: ${config.min_liquidity_usd:,.0f}")
-        self.info(f"  Max Trade Size: ${config.max_trade_size_usd:,.0f}")
-        self.info(f"  Slippage: {config.slippage_bps / 100}%")
-        self.info(f"  Gas Multiplier: {config.gas_price_multiplier}x")
-    
-    def log_trade(self, trade_data: dict):
-        """Log trade execution"""
-        self.info(f"💰 Trade Executed:")
-        self.info(f"  Strategy: {trade_data.get('strategy', 'N/A')}")
-        self.info(f"  DEX: {trade_data.get('dex', 'N/A')}")
-        self.info(f"  Profit: ${trade_data.get('profit_usd', 0):.2f}")
-        self.info(f"  Token: {trade_data.get('token', 'N/A')}")
-        self.info(f"  Amount: {trade_data.get('amount', 0)}")
-    
-    def log_opportunity(self, opp_data: dict):
-        """Log arbitrage opportunity"""
-        self.info(f"🎯 Opportunity Found:")
-        self.info(f"  Chain: {opp_data.get('chain', 'N/A')}")
-        self.info(f"  DEX Pair: {opp_data.get('dex_pair', 'N/A')}")
-        self.info(f"  Expected Profit: ${opp_data.get('profit_usd', 0):.2f}")
-        self.info(f"  Confidence: {opp_data.get('confidence', 0):.2%}")
-    
-    def _mask_api_key(self, url: str) -> str:
-        """Mask API key in URL for security"""
-        if not url:
-            return "Not configured"
-        
-        # Find the last part after the last slash
-        parts = url.split('/')
-        if len(parts) > 1:
-            # Mask the last part (usually the API key)
-            parts[-1] = parts[-1][:6] + "..." + parts[-1][-4:] if len(parts[-1]) > 10 else "***"
-            return '/'.join(parts)
-        return url
+    return logger
 
-def get_logger(name: str = "TradingBot", log_file: str = "trading_bot.log", level: str = "INFO") -> BotLogger:
-    """Get or create a logger instance"""
-    return BotLogger(name, log_file, level)
+
+def log_price_comparison_table(comparisons: list, token_a: str, token_b: str, chain: str):
+    """
+    Log a formatted price comparison table.
+    
+    Args:
+        comparisons: List of price comparisons
+        token_a: First token symbol
+        token_b: Second token symbol
+        chain: Chain name
+    """
+    logger = logging.getLogger("TradingBot")
+    
+    # Header
+    separator = "=" * 125
+    logger.info(separator)
+    logger.info(f"PRICE COMPARISON - {chain.upper()} | {token_a}/{token_b} (ALL VALUES IN USD)")
+    logger.info(separator)
+    
+    # Column headers
+    header = f"{'Source':<20} {'Type':<10} {'Price USD':<20} {'Token A USD':<20} {'Token B USD':<20} {'Liquidity USD':<20} {'Fee%':<10}"
+    logger.info(header)
+    logger.info("-" * 125)
+    
+    # Data rows
+    from src.utils.helpers import format_usd
+    
+    for comp in comparisons:
+        source = comp["source"]
+        type_ = comp["type"]
+        price_usd = format_usd(comp["price_usd"], 8)
+        token_a_usd = format_usd(comp["token_a_usd"], 8)
+        token_b_usd = format_usd(comp["token_b_usd"], 8)
+        liquidity_usd = format_usd(comp["liquidity_usd"], 2)
+        fee_pct = f"{comp['fee_pct'] * 100:.4f}"
+        
+        row = f"{source:<20} {type_:<10} {price_usd:<20} {token_a_usd:<20} {token_b_usd:<20} {liquidity_usd:<20} {fee_pct:<10}"
+        logger.info(row)
+    
+    # Footer with statistics
+    logger.info(separator)
+    
+    if comparisons:
+        from decimal import Decimal
+        prices = [comp["price_usd"] for comp in comparisons]
+        min_price = min(prices)
+        max_price = max(prices)
+        spread = ((max_price - min_price) / min_price) * Decimal("100")
+        
+        logger.info(f"Price Range: {format_usd(min_price)} - {format_usd(max_price)} | Spread: {spread:.4f}%")
+        logger.info(f"Total Sources Analyzed: {len(comparisons)}")
+    
+    logger.info(separator)
+
+
+def log_execution_results(results: dict):
+    """
+    Log execution results with profitability in USD.
+    
+    Args:
+        results: Dictionary containing execution results
+    """
+    logger = logging.getLogger("TradingBot")
+    from src.utils.helpers import format_usd
+    
+    logger.info("\nPROFITABILITY (ALL IN USD):")
+    logger.info(f"  Gross Profit: {format_usd(results.get('gross_profit', 0))}")
+    logger.info(f"  Flash Loan Fee: -{format_usd(results.get('flash_loan_fee', 0))}")
+    logger.info(f"  Bridge Fee: -{format_usd(results.get('bridge_fee', 0))}")
+    logger.info(f"  Gas Cost: -{format_usd(results.get('gas_cost', 0))}")
+    logger.info(f"  Total Fees: -{format_usd(results.get('total_fees', 0))}")
+    logger.info(f"  Net Profit (USD): {format_usd(results.get('net_profit', 0))}")
+    logger.info(f"  ROI: {results.get('roi', 0):.4f}%")

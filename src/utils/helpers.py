@@ -1,43 +1,87 @@
-"""
-Utility helper functions
-"""
+"""Utility helper functions for the DeFi Trading Bot."""
+
 from decimal import Decimal
 from typing import Optional
 
-def wei_to_ether(wei_amount: int) -> Decimal:
-    """Convert wei to ether"""
-    return Decimal(wei_amount) / Decimal(10**18)
 
-def ether_to_wei(ether_amount: float) -> int:
-    """Convert ether to wei"""
-    return int(Decimal(str(ether_amount)) * Decimal(10**18))
+def format_usd(amount: Decimal, decimals: int = 2) -> str:
+    """
+    Format a Decimal amount as USD string.
+    
+    Args:
+        amount: The amount to format
+        decimals: Number of decimal places (default 2)
+        
+    Returns:
+        Formatted string like "$1,234.56 USD"
+    """
+    if amount is None:
+        return "$0.00 USD"
+    
+    amount_str = f"{amount:,.{decimals}f}"
+    return f"${amount_str}"
 
-def format_address(address: str) -> str:
-    """Format Ethereum address for display"""
-    if not address:
-        return "N/A"
-    return f"{address[:6]}...{address[-4:]}"
 
-def format_usd(amount: float) -> str:
-    """Format USD amount for display"""
-    if amount >= 1_000_000:
-        return f"${amount/1_000_000:.2f}M"
-    elif amount >= 1_000:
-        return f"${amount/1_000:.2f}K"
-    else:
-        return f"${amount:.2f}"
+def format_usd_with_label(amount: Decimal, decimals: int = 2) -> str:
+    """
+    Format a Decimal amount as USD string with USD label.
+    
+    Args:
+        amount: The amount to format
+        decimals: Number of decimal places (default 2)
+        
+    Returns:
+        Formatted string like "$1,234.56 USD"
+    """
+    return f"{format_usd(amount, decimals)} USD"
 
-def bps_to_percent(bps: int) -> float:
-    """Convert basis points to percentage"""
-    return bps / 100.0
 
-def calculate_slippage(amount: Decimal, slippage_bps: int) -> Decimal:
-    """Calculate slippage amount"""
-    return amount * Decimal(slippage_bps) / Decimal(10000)
+def parse_fee_percentage(fee_str: str) -> Decimal:
+    """
+    Parse a fee percentage string like "0.03%" to Decimal.
+    
+    Args:
+        fee_str: Fee string like "0.03%"
+        
+    Returns:
+        Decimal representation (e.g., 0.0003 for 0.03%)
+    """
+    fee_str = fee_str.replace("%", "").strip()
+    return Decimal(fee_str) / Decimal("100")
 
-def safe_div(a: float, b: float, default: float = 0.0) -> float:
-    """Safe division with default value"""
+
+def calculate_percentage_change(old_value: Decimal, new_value: Decimal) -> Decimal:
+    """
+    Calculate percentage change between two values.
+    
+    Args:
+        old_value: Original value
+        new_value: New value
+        
+    Returns:
+        Percentage change as Decimal
+    """
+    if old_value == 0:
+        return Decimal("0")
+    
+    return ((new_value - old_value) / old_value) * Decimal("100")
+
+
+def safe_decimal(value: any, default: Decimal = Decimal("0")) -> Decimal:
+    """
+    Safely convert a value to Decimal.
+    
+    Args:
+        value: Value to convert
+        default: Default value if conversion fails
+        
+    Returns:
+        Decimal value
+    """
+    if isinstance(value, Decimal):
+        return value
+    
     try:
-        return a / b if b != 0 else default
-    except (ZeroDivisionError, TypeError):
+        return Decimal(str(value))
+    except (ValueError, TypeError, Exception):
         return default
