@@ -1,87 +1,178 @@
-"""Utility helper functions for the DeFi Trading Bot."""
+"""Helper utility functions."""
+import asyncio
+from typing import List, Dict, Any
+from datetime import datetime
+import math
 
-from decimal import Decimal
-from typing import Optional
 
-
-def format_usd(amount: Decimal, decimals: int = 2) -> str:
+def calculate_kelly_fraction(win_probability: float, win_loss_ratio: float, max_fraction: float = 0.25) -> float:
     """
-    Format a Decimal amount as USD string.
+    Calculate Kelly Criterion position size.
     
     Args:
-        amount: The amount to format
-        decimals: Number of decimal places (default 2)
-        
-    Returns:
-        Formatted string like "$1,234.56 USD"
-    """
-    if amount is None:
-        return "$0.00 USD"
+        win_probability: Probability of winning (0-1)
+        win_loss_ratio: Ratio of win amount to loss amount
+        max_fraction: Maximum fraction to risk (default 0.25 for conservative approach)
     
-    amount_str = f"{amount:,.{decimals}f}"
-    return f"${amount_str}"
-
-
-def format_usd_with_label(amount: Decimal, decimals: int = 2) -> str:
+    Returns:
+        Position size as a fraction of capital
     """
-    Format a Decimal amount as USD string with USD label.
+    if win_probability <= 0 or win_probability >= 1:
+        return 0.0
+    
+    if win_loss_ratio <= 0:
+        return 0.0
+    
+    # Kelly formula: f = (p * b - q) / b
+    # where p = win probability, q = loss probability, b = win/loss ratio
+    loss_probability = 1 - win_probability
+    kelly_fraction = (win_probability * win_loss_ratio - loss_probability) / win_loss_ratio
+    
+    # Cap at max fraction for risk management
+    return max(0.0, min(kelly_fraction, max_fraction))
+
+
+def calculate_position_size(
+    capital: float,
+    win_probability: float,
+    expected_profit: float,
+    expected_loss: float,
+    max_position: float
+) -> float:
+    """
+    Calculate optimal position size using Kelly Criterion.
     
     Args:
-        amount: The amount to format
-        decimals: Number of decimal places (default 2)
-        
+        capital: Available capital
+        win_probability: Probability of success
+        expected_profit: Expected profit amount
+        expected_loss: Expected loss amount
+        max_position: Maximum position size limit
+    
     Returns:
-        Formatted string like "$1,234.56 USD"
+        Recommended position size
     """
-    return f"{format_usd(amount, decimals)} USD"
+    if expected_loss <= 0:
+        return 0.0
+    
+    win_loss_ratio = expected_profit / expected_loss
+    kelly_frac = calculate_kelly_fraction(win_probability, win_loss_ratio)
+    
+    position_size = capital * kelly_frac
+    
+    # Apply maximum position limit
+    return min(position_size, max_position)
 
 
-def parse_fee_percentage(fee_str: str) -> Decimal:
+def calculate_slippage_impact(amount: float, liquidity: float, slippage_tolerance: float = 0.005) -> float:
     """
-    Parse a fee percentage string like "0.03%" to Decimal.
+    Estimate slippage impact on trade.
     
     Args:
-        fee_str: Fee string like "0.03%"
-        
+        amount: Trade amount
+        liquidity: Available liquidity
+        slippage_tolerance: Maximum acceptable slippage
+    
     Returns:
-        Decimal representation (e.g., 0.0003 for 0.03%)
+        Estimated slippage as a fraction
     """
-    fee_str = fee_str.replace("%", "").strip()
-    return Decimal(fee_str) / Decimal("100")
+    if liquidity <= 0:
+        return 1.0  # 100% slippage if no liquidity
+    
+    # Simplified slippage model: quadratic function
+    impact_ratio = amount / liquidity
+    slippage = impact_ratio ** 2
+    
+    return min(slippage, slippage_tolerance)
 
 
-def calculate_percentage_change(old_value: Decimal, new_value: Decimal) -> Decimal:
+def calculate_profit_after_fees(
+    gross_profit: float,
+    gas_cost: float,
+    flash_loan_fee: float = 0.0
+) -> float:
     """
-    Calculate percentage change between two values.
+    Calculate net profit after all fees.
     
     Args:
-        old_value: Original value
-        new_value: New value
-        
-    Returns:
-        Percentage change as Decimal
-    """
-    if old_value == 0:
-        return Decimal("0")
+        gross_profit: Profit before fees
+        gas_cost: Gas cost in USD
+        flash_loan_fee: Flash loan fee if applicable
     
-    return ((new_value - old_value) / old_value) * Decimal("100")
-
-
-def safe_decimal(value: any, default: Decimal = Decimal("0")) -> Decimal:
+    Returns:
+        Net profit
     """
-    Safely convert a value to Decimal.
+    return gross_profit - gas_cost - flash_loan_fee
+
+
+def rank_opportunities(opportunities: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Rank trading opportunities by profit * confidence.
     
     Args:
-        value: Value to convert
-        default: Default value if conversion fails
-        
-    Returns:
-        Decimal value
-    """
-    if isinstance(value, Decimal):
-        return value
+        opportunities: List of opportunity dictionaries
     
-    try:
-        return Decimal(str(value))
-    except (ValueError, TypeError, Exception):
-        return default
+    Returns:
+        Sorted list of opportunities
+    """
+    for opp in opportunities:
+        score = opp.get('profit', 0) * opp.get('confidence', 0)
+        opp['score'] = score
+    
+    return sorted(opportunities, key=lambda x: x.get('score', 0), reverse=True)
+
+
+def validate_transaction_params(
+    amount: float,
+    slippage: float,
+    gas_price: int,
+    max_position: float
+) -> tuple[bool, str]:
+    """
+    Validate transaction parameters.
+    
+    Args:
+        amount: Transaction amount
+        slippage: Slippage tolerance
+        gas_price: Gas price
+        max_position: Maximum position size
+    
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    if amount <= 0:
+        return False, "Amount must be positive"
+    
+    if amount > max_position:
+        return False, f"Amount exceeds max position size: {max_position}"
+    
+    if slippage < 0 or slippage > 0.1:
+        return False, "Slippage must be between 0 and 0.1 (10%)"
+    
+    if gas_price <= 0:
+        return False, "Gas price must be positive"
+    
+    return True, ""
+
+
+async def retry_async(func, max_retries: int = 3, delay: float = 1.0):
+    """
+    Retry an async function with exponential backoff.
+    
+    Args:
+        func: Async function to retry
+        max_retries: Maximum number of retries
+        delay: Initial delay between retries
+    
+    Returns:
+        Result of function or None if all retries fail
+    """
+    for attempt in range(max_retries):
+        try:
+            return await func()
+        except Exception as e:
+            if attempt == max_retries - 1:
+                print(f"All retries failed: {e}")
+                return None
+            await asyncio.sleep(delay * (2 ** attempt))
+    return None
