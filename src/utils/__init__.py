@@ -1,3 +1,1 @@
-"""
-Utility functions module
-"""
+"""Utils package"""

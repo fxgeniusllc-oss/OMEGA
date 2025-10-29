@@ -1,3 +1,1 @@
-"""
-Tests for OMEGA trading bot
-"""
+"""Tests package"""

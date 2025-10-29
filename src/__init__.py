@@ -1,6 +1,5 @@
-"""
-OMEGA - DeFi Trading Bot
-Transaction Engine and Trading Strategies
-"""
+"""Source package"""
+from .logger import setup_logger, TradingBotLogger, TerminalFormatter
+from .config import Config
 
-__version__ = "1.0.0"
+__all__ = ['setup_logger', 'TradingBotLogger', 'TerminalFormatter', 'Config']
