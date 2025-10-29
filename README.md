@@ -1,89 +1,478 @@
-# OMEGA - Advanced DeFi Trading Bot
+# OMEGA - Unified DeFi Trading Bot
 
-[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](tests/)
-[![Python](https://img.shields.io/badge/python-3.8%2B-blue)](https://python.org)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+A production-ready, multi-strategy DeFi trading bot with advanced features including MEV detection, cross-chain arbitrage, AI-powered predictions, and comprehensive risk management.
 
-An advanced DeFi trading bot with enhanced terminal output featuring color-coded displays, real-time price comparisons, and comprehensive execution tracking.
+## 🎯 Key Features
 
-## ✨ Key Features
+### Unified Architecture
+- **Single UnifiedTradingBot class** that orchestrates all strategies
+- Each strategy has its own specialized engine class (MempoolWatcher, CrossChainArbitrageur, etc.)
+- **Configuration-driven approach** - enable/disable strategies via environment variables
+- Works across **multiple chains** (Polygon, Ethereum, Arbitrum, Optimism)
 
-### 🎨 Rich Terminal Output
-- **Color-coded messages**: Green for profits, red for losses, blue for transactions, cyan for prices
-- **Price comparison tables**: Real-time price data across multiple DEXs
-- **Execution results**: Detailed transaction information with profit/loss breakdown
-- **Trading statistics**: Win rate, total profits, average performance
-- **Bot cycle displays**: Clear cycle headers with timestamps
+### 9 Integrated Trading Strategies
 
-### 🚀 Trading Strategies
-- **Cross-Chain Arbitrage**: Find price differences across chains
-- **Bridge Arbitrage**: Exploit bridge pricing inefficiencies
-- **Extensible architecture**: Easy to add custom strategies
+1. **Mempool Watching** - MEV detection and sandwich trading
+2. **Cross-Chain Arbitrage** - Price differences across networks
+3. **Pump Prediction AI** - Technical analysis (RSI included)
+4. **Market Making** - Bid-ask spread optimization
+5. **Statistical Arbitrage** - Correlation-based mean reversion
+6. **Gamma Scalping** - Hedging and rehedging logic
+7. **Funding Rate Harvesting** - Perpetual futures arbitrage
+8. **Volatility Arbitrage** - Realized vs implied vol trading
+9. **Bridge Arbitrage** - Cross-bridge price differences
 
-### 📊 Monitoring & Logging
-- **Dual logging**: Colored console output + plain text file logs
-- **Real-time statistics**: Track performance across all trades
-- **Transaction tracking**: Full blockchain confirmation details
+### Advanced Features
 
-## 🎯 Quick Start
-
-```bash
-# Clone and install
-git clone https://github.com/fxgeniusllc-oss/OMEGA.git
-cd OMEGA
-bash scripts/install.sh
-
-# Run demo (safe, no real trades)
-python scripts/demo.py
-
-# Run bot
-python -m src.bot
-```
-
-📚 **See [QUICKSTART.md](QUICKSTART.md) for detailed instructions**
-
-## 📖 Documentation
-
-- **[QUICKSTART.md](QUICKSTART.md)** - Get started in minutes
-- **[FEATURES.md](FEATURES.md)** - Detailed feature documentation
-- **[README.md](README.md)** - Full installation guide (this file)
+- **Position Manager** - Enforces Kelly Criterion sizing and risk limits
+- **Flash Loan Manager** - Handles Balancer/Aave flash loans with fee calculation
+- **Opportunity Ranking** - Sorts by profit * confidence
+- **Multi-mode Support** - LIVE, DEV, or SIM (simulation) trading
+- **Comprehensive Logging** - Track all decisions and executions
+- **Error Handling** - Graceful failures per strategy
 
 ---
 
-# DeFi Trading Bot - Repository Setup & Installation Guide
+## 🚀 Quick Start
 
-## 📁 Repository Structure
+### Prerequisites
+- Python 3.11+
+- pip
+- Virtual environment (recommended)
 
+### Installation
+
+**Linux/Mac:**
+```bash
+bash scripts/install.sh
+```
+
+**Windows:**
+```bash
+scripts\install.bat
+```
+
+**Manual Installation:**
+```bash
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Create .env file
+cp .env.example .env
+# Edit .env with your configuration
+```
+
+### Configuration
+
+Edit `.env` with your settings:
+
+```env
+# Trading Mode: LIVE, DEV, or SIM
+MODE=SIM
+
+# Blockchain RPCs
+INFURA_POLYGON_RPC=https://polygon-rpc.com
+INFURA_ETHEREUM_RPC=https://eth-rpc.com
+INFURA_ARBITRUM_RPC=https://arb-rpc.com
+INFURA_OPTIMISM_RPC=https://op-rpc.com
+
+# Active Strategies (comma-separated)
+ACTIVE_STRATEGIES=MEMPOOL_WATCHING,CROSS_CHAIN_ARBITRAGE,PUMP_PREDICTION,MARKET_MAKING,STATISTICAL_ARBITRAGE,GAMMA_SCALPING,FUNDING_RATE,VOLATILITY_ARBITRAGE,BRIDGE_ARBITRAGE
+
+# Risk Management
+MAX_POSITION_SIZE=10000
+RISK_PER_TRADE=0.02
+SLIPPAGE_TOLERANCE=0.005
+GAS_PRICE_MULTIPLIER=1.1
+
+# Flash Loan Provider: BALANCER or AAVE
+FLASH_LOAN_PROVIDER=BALANCER
+```
+
+### Running the Bot
+
+**Linux/Mac:**
+```bash
+bash scripts/run.sh
+```
+
+**Windows:**
+```bash
+scripts\run.bat
+```
+
+**Direct Python:**
+```bash
+python bot.py
+# or
+python -m src.bot
+```
+
+---
+
+## 📊 Trading Modes
+
+### SIM Mode (Simulation)
+- Uses mock data and mock capital ($100,000)
+- No real transactions
+- Perfect for testing and development
+```env
+MODE=SIM
+```
+
+### DEV Mode (Development)
+- Connects to real blockchain RPCs
+- Uses real data but can limit execution
+- For testing with live data
+```env
+MODE=DEV
+LIVE_EXECUTION=false
+```
+
+### LIVE Mode (Production)
+- Real trading with real funds
+- Requires PRIVATE_KEY configuration
+- ⚠️ Use with caution!
+```env
+MODE=LIVE
+PRIVATE_KEY=your_private_key_here
+LIVE_EXECUTION=true
+```
+
+---
+
+## 🧪 Testing
+
+Run the test suite:
+```bash
+pip install pytest pytest-asyncio
+pytest tests/ -v
+```
+
+Run specific tests:
+```bash
+pytest tests/test_bot.py -v
+```
+
+---
+
+## 🐳 Docker Deployment
+
+### Build and Run
+```bash
+cd docker
+docker-compose up -d
+```
+
+### View Logs
+```bash
+docker-compose logs -f bot
+```
+
+### Stop Bot
+```bash
+docker-compose down
+```
+
+---
+
+## 📁 Project Structure
+
+```
 ```
 OMEGA/
 │
-├── README.md                           # Main documentation
-├── requirements.txt                    # Python dependencies (✅ Implemented)
-├── .env.example                        # Example environment variables (✅ Implemented)
-├── .env                                # Your actual env (DO NOT COMMIT)
-├── .gitignore                          # Git ignore file (✅ Implemented)
+├── README.md                      # This file
+├── requirements.txt               # Python dependencies
+├── .env.example                   # Example environment variables
+├── .env                          # Your config (DO NOT COMMIT)
+├── .gitignore                    # Git ignore rules
+├── bot.py                        # Convenience run script
 │
 ├── src/
-│   ├── __init__.py                     # (✅ Implemented)
-│   ├── transaction_engine.py           # Hyper-compact transaction engine (✅ Implemented)
-│   ├── bot.py                          # Main trading bot (TO BE IMPLEMENTED)
-│   ├── config.py                       # Configuration loader (TO BE IMPLEMENTED)
-│   ├── logger.py                       # Enhanced logging setup (TO BE IMPLEMENTED)
-│   ├── oracle.py                       # Price oracle & conversion (TO BE IMPLEMENTED)
-│   ├── blockchain.py                   # Blockchain interface (TO BE IMPLEMENTED)
+│   ├── __init__.py
+│   ├── bot.py                    # Main UnifiedTradingBot class
+│   ├── config.py                 # Configuration management
+│   ├── logger.py                 # Logging setup
+│   ├── oracle.py                 # Price oracle
+│   ├── blockchain.py             # Blockchain interface
+│   ├── position_manager.py       # Position & risk management
+│   ├── flash_loan_manager.py     # Flash loan handling
+│   │
 │   ├── strategies/
-│   │   ├── __init__.py                 # (✅ Implemented)
-│   │   ├── arbitrage.py                # Cross-chain arbitrage (TO BE IMPLEMENTED)
-│   │   ├── bridge.py                   # Bridge arbitrage (TO BE IMPLEMENTED)
-│   │   ├── mempool.py                  # Mempool watching (TO BE IMPLEMENTED)
-│   │   └── base.py                     # Base strategy class (TO BE IMPLEMENTED)
+│   │   ├── __init__.py
+│   │   ├── base.py               # Base strategy class
+│   │   ├── mempool.py            # MEV & sandwich attacks
+│   │   ├── arbitrage.py          # Cross-chain arbitrage
+│   │   ├── bridge.py             # Bridge arbitrage
+│   │   ├── pump_prediction.py    # AI pump prediction
+│   │   ├── market_making.py      # Market making
+│   │   ├── statistical_arbitrage.py  # Stat arb
+│   │   ├── gamma_scalping.py     # Gamma scalping
+│   │   ├── funding_rate.py       # Funding rate harvest
+│   │   └── volatility_arbitrage.py   # Vol arbitrage
+│   │
 │   └── utils/
-│       ├── __init__.py                 # (✅ Implemented)
-│       ├── helpers.py                  # Utility functions (TO BE IMPLEMENTED)
-│       └── constants.py                # Constants & enums (TO BE IMPLEMENTED)
+│       ├── __init__.py
+│       ├── constants.py          # Constants & enums
+│       └── helpers.py            # Utility functions
 │
-├── docs/
-│   └── TRANSACTION_ENGINE.md           # Transaction engine docs (✅ Implemented)
+├── tests/
+│   ├── __init__.py
+│   └── test_bot.py               # Bot tests
+│
+├── scripts/
+│   ├── run.sh                    # Linux/Mac run script
+│   ├── run.bat                   # Windows run script
+│   ├── install.sh                # Linux/Mac installer
+│   └── install.bat               # Windows installer
+│
+├── docker/
+│   ├── Dockerfile
+│   ├── docker-compose.yml
+│   └── .dockerignore
+│
+├── logs/                         # Log files (auto-created)
+└── models/                       # ML models (optional)
+```
+
+---
+
+## 🔧 Strategy Configuration
+
+Enable/disable strategies by editing `ACTIVE_STRATEGIES` in `.env`:
+
+```env
+# Enable all strategies
+ACTIVE_STRATEGIES=MEMPOOL_WATCHING,CROSS_CHAIN_ARBITRAGE,PUMP_PREDICTION,MARKET_MAKING,STATISTICAL_ARBITRAGE,GAMMA_SCALPING,FUNDING_RATE,VOLATILITY_ARBITRAGE,BRIDGE_ARBITRAGE
+
+# Enable only arbitrage strategies
+ACTIVE_STRATEGIES=CROSS_CHAIN_ARBITRAGE,BRIDGE_ARBITRAGE
+
+# Enable only AI and statistical strategies
+ACTIVE_STRATEGIES=PUMP_PREDICTION,STATISTICAL_ARBITRAGE,VOLATILITY_ARBITRAGE
+```
+
+---
+
+## 💰 Risk Management
+
+The bot includes comprehensive risk management:
+
+### Kelly Criterion Position Sizing
+```python
+position_size = kelly_fraction * capital
+# Capped at MAX_POSITION_SIZE
+```
+
+### Risk Limits
+- `MAX_POSITION_SIZE`: Maximum size per trade
+- `RISK_PER_TRADE`: Maximum risk per trade (as fraction of capital)
+- `SLIPPAGE_TOLERANCE`: Maximum acceptable slippage
+
+### Flash Loan Safety
+- Automatic fee calculation
+- Profitability check before execution
+- Provider selection (Balancer/Aave)
+
+---
+
+## 📈 Performance Monitoring
+
+The bot logs all activity to:
+- Console (color-coded)
+- `trading_bot.log` file
+
+### Example Output
+```
+2025-10-29 16:01:51 [INFO] ================================================================================
+2025-10-29 16:01:51 [INFO] Initializing Unified Trading Bot
+2025-10-29 16:01:51 [INFO] Mode: SIM
+2025-10-29 16:01:51 [INFO] ================================================================================
+2025-10-29 16:01:51 [INFO] ✓ Strategy enabled: MEMPOOL_WATCHING
+2025-10-29 16:01:51 [INFO] ✓ Strategy enabled: CROSS_CHAIN_ARBITRAGE
+...
+2025-10-29 16:01:51 [INFO] Trading bot started
+2025-10-29 16:01:51 [INFO] Capital updated: $100000.00
+2025-10-29 16:01:51 [INFO] Found 11 opportunities
+2025-10-29 16:01:51 [INFO] Position size calculated for MempoolWatcher: $8000.00 (Win prob: 70.00%)
+2025-10-29 16:01:51 [INFO] Executing opportunity: MempoolWatcher | Profit $120.00 | Confidence 70.00%
+2025-10-29 16:01:51 [INFO] ✓ Trade executed successfully | Profit $120.00
+2025-10-29 16:01:52 [INFO] Executed 5 trades this cycle
+2025-10-29 16:01:52 [INFO] Total profit: $420.00
+```
+
+---
+
+## 🔐 Security Best Practices
+
+1. **Never commit `.env` file** - It contains sensitive keys
+2. **Use hardware wallet** for LIVE mode if possible
+3. **Start with SIM mode** - Test thoroughly before live trading
+4. **Use small amounts** initially in LIVE mode
+5. **Monitor gas prices** - High gas can eat profits
+6. **Set conservative risk limits** - Better safe than sorry
+7. **Keep private keys secure** - Never share or expose
+
+---
+
+## 🛠️ Troubleshooting
+
+### Bot not finding opportunities
+- Check `MODE` is set to `SIM` for testing
+- Verify strategies are enabled in `ACTIVE_STRATEGIES`
+- Check logs for errors
+
+### RPC connection issues
+- Verify RPC URLs in `.env`
+- Check if RPC provider is working
+- Try alternative RPC endpoints
+
+### Installation issues
+```bash
+# Upgrade pip
+pip install --upgrade pip
+
+# Install specific versions
+pip install web3==6.11.3 python-dotenv==1.0.0 aiohttp==3.9.1
+```
+
+### Import errors
+```bash
+# Make sure you're in the project root
+cd /path/to/OMEGA
+
+# Run with module syntax
+python -m src.bot
+```
+
+---
+
+## 📚 Environment Variables Reference
+## 📚 Environment Variables Reference
+
+### Trading Mode
+| Variable | Values | Description |
+|----------|--------|-------------|
+| `MODE` | `LIVE`, `DEV`, `SIM` | Trading mode |
+| `AUTO_START_ARBITRAGE` | `true`, `false` | Auto-start on launch |
+| `LIVE_EXECUTION` | `true`, `false` | Execute real trades |
+
+### Addresses & Keys
+| Variable | Description |
+|----------|-------------|
+| `BOT_ADDRESS` | Your wallet address |
+| `PRIVATE_KEY` | Private key (LIVE mode only) |
+
+### RPC Endpoints
+| Variable | Description |
+|----------|-------------|
+| `INFURA_POLYGON_RPC` | Polygon RPC URL |
+| `INFURA_ETHEREUM_RPC` | Ethereum RPC URL |
+| `INFURA_ARBITRUM_RPC` | Arbitrum RPC URL |
+| `INFURA_OPTIMISM_RPC` | Optimism RPC URL |
+
+### Strategy Configuration
+| Variable | Description |
+|----------|-------------|
+| `ACTIVE_STRATEGIES` | Comma-separated list of strategies |
+
+### Risk Management
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MAX_POSITION_SIZE` | `10000` | Max position size (USD) |
+| `RISK_PER_TRADE` | `0.02` | Risk per trade (2% of capital) |
+| `SLIPPAGE_TOLERANCE` | `0.005` | Max slippage (0.5%) |
+| `GAS_PRICE_MULTIPLIER` | `1.1` | Gas price multiplier |
+
+### Flash Loans
+| Variable | Values | Description |
+|----------|--------|-------------|
+| `FLASH_LOAN_PROVIDER` | `BALANCER`, `AAVE` | Flash loan provider |
+
+### Logging
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LOG_FILE` | `trading_bot.log` | Log file path |
+| `LOG_LEVEL` | `INFO` | Log level |
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please:
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests
+5. Submit a pull request
+
+---
+
+## ⚠️ Disclaimer
+
+**This bot is for educational purposes only.**
+
+- Trading cryptocurrencies carries significant risk
+- You may lose all your invested capital
+- Past performance does not guarantee future results
+- Always do your own research (DYOR)
+- Test thoroughly in SIM mode before live trading
+- The authors are not responsible for any financial losses
+
+---
+
+## 📄 License
+
+This project is provided as-is for educational purposes.
+
+---
+
+## 🔗 Resources
+
+- [Web3.py Documentation](https://web3py.readthedocs.io/)
+- [Balancer Flash Loans](https://docs.balancer.fi/reference/contracts/flash-loans.html)
+- [Aave Flash Loans](https://docs.aave.com/developers/guides/flash-loans)
+- [Kelly Criterion](https://en.wikipedia.org/wiki/Kelly_criterion)
+
+---
+
+## 📞 Support
+
+For issues and questions:
+- Open an issue on GitHub
+- Check the troubleshooting section
+- Review the logs in `trading_bot.log`
+
+---
+
+**Built with ❤️ for the DeFi community**
+├── setup.py                            # Package installation script
+├── .env.example                        # Example environment variables
+├── .env                                # Your actual env (DO NOT COMMIT)
+├── .gitignore                          # Git ignore file
+│
+├── src/
+│   ├── __init__.py
+│   ├── bot.py                          # Main trading bot (COPY FROM ARTIFACT)
+│   ├── config.py                       # Configuration loader
+│   ├── logger.py                       # Enhanced logging setup
+│   ├── oracle.py                       # Price oracle & conversion
+│   ├── blockchain.py                   # Blockchain interface
+│   ├── strategies/
+│   │   ├── __init__.py
+│   │   ├── arbitrage.py                # Cross-chain arbitrage
+│   │   ├── bridge.py                   # Bridge arbitrage
+│   │   ├── mempool.py                  # Mempool watching
+│   │   └── base.py                     # Base strategy class
+│   └── utils/
+│       ├── __init__.py
+│       ├── helpers.py                  # Utility functions
+│       └── constants.py                # Constants & enums
 │
 ├── models/
 │   ├── lstm_market_maker.h5            # Pre-trained LSTM (optional)
@@ -95,16 +484,14 @@ OMEGA/
 │   └── trades_history.json             # Trade history
 │
 ├── tests/
-│   ├── __init__.py                     # (✅ Implemented)
-│   ├── test_transaction_engine.py      # Transaction engine tests (✅ Implemented)
-│   ├── test_bot.py                     # (TO BE IMPLEMENTED)
-│   ├── test_strategies.py              # (TO BE IMPLEMENTED)
-│   └── test_oracle.py                  # (TO BE IMPLEMENTED)
+│   ├── __init__.py
+│   ├── test_bot.py
+│   ├── test_strategies.py
+│   └── test_oracle.py
 │
 ├── scripts/
-│   ├── run_transaction_engine.py       # Run transaction engine (✅ Implemented)
-│   ├── install.sh                      # Linux/Mac installation (TO BE IMPLEMENTED)
-│   ├── install.bat                     # Windows installation (TO BE IMPLEMENTED)
+│   ├── install.sh                      # Linux/Mac installation
+│   ├── install.bat                     # Windows installation
 │   ├── run.sh                          # Linux/Mac run script
 │   ├── run.bat                         # Windows run script
 │   └── backtest.py                     # Backtesting script
@@ -509,70 +896,6 @@ Then:
 ```bash
 pip install -r requirements-lite.txt
 ```
-
----
-
-## 🎨 Terminal Output Features
-
-The bot includes rich terminal output with color-coded displays for easy monitoring:
-
-### Price Comparison Tables
-```
-============================================================
-           PRICE COMPARISON - POLYGON | USDC/WETH           
-============================================================
-Source               Price                Liquidity            Spread%        
-Uniswap V3          $1850.50000000        500,000.00           0.0950
-QuickSwap           $1850.60000000        450,000.00           
-Balancer            $1851.23000000        300,000.00           
-============================================================
-Price Range: $1850.50 - $1851.23 | Spread: 0.0395%
-```
-
-### Execution Results
-```
-==============================================================================
-                              EXECUTION RESULTS                               
-==============================================================================
-Transaction Hash: 0x1a2b3c4d5e6f...
-Block Number: 45,001,234
-Gas Used: 287,456
-Execution Time: 2.34s
-
-Entry Price: $1850.50000000
-Exit Price: $1851.23000000
-Price Difference: $0.73000000
-
-Gross Profit: $73.00
-Flash Loan Fee: -$0.15
-Net Profit: $72.85
-ROI: 0.3925%
-==============================================================================
-```
-
-### Trading Statistics
-```
-==============================================================================
-                              TRADING STATISTICS                              
-==============================================================================
-Total Trades: 5
-Winning Trades: 4
-Win Rate: 80.00%
-Total Profit: $342.15
-Total Loss: -$28.50
-Net Profit: $313.65
-Average Profit per Trade: $62.73
-==============================================================================
-```
-
-### Color Guide
-- 🟢 **Green**: Profits, successful trades
-- 🔴 **Red**: Losses, errors
-- 🔵 **Blue**: Transaction hashes, blockchain events
-- 🟦 **Cyan**: Price data, debug information
-- 🟡 **Yellow**: Warnings
-
-See [FEATURES.md](FEATURES.md) for complete documentation.
 
 ---
 

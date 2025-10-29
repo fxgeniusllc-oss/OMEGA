@@ -1,57 +1,28 @@
 #!/bin/bash
 # Installation script for Linux/Mac
 
-echo "=================================="
-echo "DeFi Trading Bot - Installation"
-echo "=================================="
-
-# Check if Python is installed
-if ! command -v python3 &> /dev/null; then
-    echo "Error: Python 3 is not installed"
-    exit 1
-fi
-
-echo "✓ Python 3 found: $(python3 --version)"
+echo "Installing DeFi Trading Bot..."
 
 # Create virtual environment
-echo ""
-echo "Creating virtual environment..."
 python3 -m venv venv
 
 # Activate virtual environment
-echo "Activating virtual environment..."
 source venv/bin/activate
 
 # Upgrade pip
-echo "Upgrading pip..."
 pip install --upgrade pip setuptools wheel
 
 # Install dependencies
-echo "Installing dependencies..."
 pip install -r requirements.txt
 
-# Copy .env.example if .env doesn't exist
+# Create .env file from example if it doesn't exist
 if [ ! -f ".env" ]; then
-    echo "Creating .env file from template..."
     cp .env.example .env
-    echo "✓ .env file created. Please edit it with your configuration."
-else
-    echo "✓ .env file already exists."
+    echo "Created .env file. Please edit it with your configuration."
 fi
 
-# Create log directory
+# Create logs directory
 mkdir -p logs
-echo "✓ Log directory created."
 
-# Create models directory
-mkdir -p models
-echo "✓ Models directory created."
-
-echo ""
-echo "========================================="
-echo "Installation Complete!"
-echo "========================================="
-echo "Next steps:"
-echo "1. Edit .env with your API keys and configuration"
-echo "2. Run: bash scripts/run.sh"
-echo "========================================="
+echo "Installation complete!"
+echo "Please edit .env with your configuration, then run: bash scripts/run.sh"

@@ -1,65 +1,68 @@
-"""Tests for the trading bot."""
+"""Basic tests for the trading bot."""
 import pytest
-from decimal import Decimal
-from src.bot import (
-    PriceOracle,
-    StrategyMode,
-    TradingStrategy,
-    load_config,
-    BotConfig,
-)
+import asyncio
+from src.bot import UnifiedTradingBot
+from src.config import Config
+from src.utils.helpers import calculate_kelly_fraction, calculate_position_size
 
 
-def test_price_oracle():
-    """Test PriceOracle initialization."""
-    oracle = PriceOracle()
-    assert oracle.exchange_rates["USDC"] == Decimal("1.0000")
-    assert oracle.exchange_rates["WETH"] == Decimal("2347.50")
+def test_config_loads():
+    """Test that configuration loads properly."""
+    assert Config.MODE in ["LIVE", "DEV", "SIM"]
+    assert Config.BOT_ADDRESS is not None
+
+
+def test_kelly_fraction():
+    """Test Kelly fraction calculation."""
+    # Test case: 60% win rate, 2:1 win/loss ratio
+    kelly_frac = calculate_kelly_fraction(0.6, 2.0)
+    assert 0 < kelly_frac <= 0.25  # Should be capped at 0.25
+    
+    # Test case: 50% win rate, 1:1 ratio (no edge)
+    kelly_frac = calculate_kelly_fraction(0.5, 1.0)
+    assert kelly_frac == 0.0
+
+
+def test_position_size_calculation():
+    """Test position size calculation."""
+    capital = 10000
+    win_prob = 0.7
+    expected_profit = 100
+    expected_loss = 50
+    max_position = 5000
+    
+    position_size = calculate_position_size(
+        capital, win_prob, expected_profit, expected_loss, max_position
+    )
+    
+    assert 0 < position_size <= max_position
 
 
 @pytest.mark.asyncio
-async def test_get_usd_price():
-    """Test getting USD price for a token."""
-    oracle = PriceOracle()
-    price = await oracle.get_usd_price("USDC")
-    assert price == Decimal("1.0000")
+async def test_bot_initialization():
+    """Test bot initialization."""
+    bot = UnifiedTradingBot()
+    
+    assert bot.config is not None
+    assert bot.blockchain is not None
+    assert bot.oracle is not None
+    assert bot.position_manager is not None
+    assert bot.flash_loan_manager is not None
+    assert len(bot.strategies) > 0
 
 
 @pytest.mark.asyncio
-async def test_convert_to_usd():
-    """Test converting token amount to USD."""
-    oracle = PriceOracle()
-    amount = Decimal("10")
-    usd_value = await oracle.convert_to_usd(amount, "USDC")
-    assert usd_value == Decimal("10.0000")
+async def test_strategies_enabled():
+    """Test that strategies are enabled based on config."""
+    bot = UnifiedTradingBot()
+    
+    # Check that active strategies are enabled
+    for strategy_name in Config.ACTIVE_STRATEGIES:
+        strategy_name = strategy_name.strip()
+        if strategy_name in bot.strategies:
+            strategy = bot.strategies[strategy_name]
+            assert strategy.enabled is True
 
 
-@pytest.mark.asyncio
-async def test_convert_from_usd():
-    """Test converting USD to token amount."""
-    oracle = PriceOracle()
-    usd_amount = Decimal("100")
-    token_amount = await oracle.convert_from_usd(usd_amount, "USDC")
-    assert token_amount == Decimal("100.0000")
-
-
-def test_strategy_mode_enum():
-    """Test StrategyMode enum."""
-    assert StrategyMode.LIVE.value == "LIVE"
-    assert StrategyMode.DEV.value == "DEV"
-    assert StrategyMode.SIM.value == "SIM"
-
-
-def test_trading_strategy_enum():
-    """Test TradingStrategy enum."""
-    assert TradingStrategy.CROSS_CHAIN_ARBITRAGE.value == "cross_chain_arbitrage"
-    assert TradingStrategy.BRIDGE_ARBITRAGE.value == "bridge_arbitrage"
-
-
-def test_load_config():
-    """Test loading configuration from environment."""
-    config = load_config()
-    assert isinstance(config, BotConfig)
-    assert config.mode in [StrategyMode.LIVE, StrategyMode.DEV, StrategyMode.SIM]
-    assert isinstance(config.strategies, list)
-    assert config.min_profit_usd > 0
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
