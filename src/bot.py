@@ -60,6 +60,12 @@ class UnifiedTradingBot:
         # Initialize strategies
         self.strategies = self._initialize_strategies()
         
+        # Create a mapping from class names to strategy instances
+        self.strategy_by_name = {
+            strategy.name: strategy
+            for strategy in self.strategies.values()
+        }
+        
         # Bot state
         self.running = False
         self.total_profit = 0.0
@@ -227,7 +233,7 @@ class UnifiedTradingBot:
                 return False
             
             # Execute through strategy
-            strategy = self.strategies.get(strategy_name)
+            strategy = self.strategy_by_name.get(strategy_name)
             if not strategy:
                 self.logger.error(f"Strategy not found: {strategy_name}")
                 return False
@@ -255,6 +261,11 @@ class UnifiedTradingBot:
     async def _update_capital(self):
         """Update available capital from blockchain."""
         try:
+            # In SIM mode, use mock capital
+            if self.config.MODE == "SIM":
+                self.position_manager.update_capital(100000.0)
+                return
+            
             # Get balance from primary chain (Polygon)
             balance = await self.blockchain.get_balance(
                 "POLYGON",
@@ -263,7 +274,7 @@ class UnifiedTradingBot:
             
             # Convert to USD (mock)
             matic_price = await self.oracle.get_price("MATIC", "USD")
-            if matic_price:
+            if matic_price and balance > 0:
                 capital_usd = balance * matic_price
                 self.position_manager.update_capital(capital_usd)
             else:
